@@ -1,0 +1,54 @@
+<html>
+
+   <head>
+      <title>WebRTC Video Demo</title>
+      <link rel = "stylesheet" href = "node_modules/bootstrap/dist/css/bootstrap.min.css"/>
+   </head>
+
+   <style>
+
+      body {
+         background: #eee;
+         padding: 5% 0;
+      }
+
+      video {
+         background: black;
+         border: 1px solid gray;
+      }
+
+
+      #localVideo {
+         width: 150px;
+         height: 150px;
+
+      }
+   </style>
+
+   <body>
+
+   <div>
+         <input type = "text" id = "loginInput" />
+         <button id = "loginBtn">Login</button>
+      </div>
+
+      <div>
+         <input type = "text" id = "otherUsernameInput" />
+         <button id = "connectToOtherUsernameBtn">Establish connection</button>
+      </div>
+		<div>
+      <textarea readonly id="peerList">
+      </textarea>
+    </div>
+   </div>
+
+   <div id = "callPage" class = "call-page">
+<video id = "localVideo" autoplay></video>
+
+   </div>
+
+   <script src = "client.js"></script>
+
+   </body>
+
+</html>
