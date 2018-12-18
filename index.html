@@ -18,32 +18,26 @@
       }
 
 
-      #localVideo {
-         width: 150px;
-         height: 150px;
+      Video {
+         height: 400px;
 
       }
    </style>
 
    <body>
 
-   <div>
-         <input type = "text" id = "loginInput" />
-         <button id = "loginBtn">Login</button>
-      </div>
 
-      <div>
+      <div >
+
          <input type = "text" id = "otherUsernameInput" />
-         <button id = "connectToOtherUsernameBtn">Establish connection</button>
+         <button id = "connectToOtherUsernameBtn">Establish connection with another camera?</button>
       </div>
 		<div>
-      <textarea readonly id="peerList">
-      </textarea>
+        Our id: <span id="ourID"></span>
     </div>
    </div>
-
+   <h3>Camera Panel</h3>
    <div id = "callPage" class = "call-page">
-<video id = "localVideo" autoplay></video>
 
    </div>
 

@@ -29,83 +29,63 @@ async def recv_msg_ping(ws):
 
 async def signaling(websocket, path):
     while(True):
-        #print (websocket.remote_address)
-        #get message from client
         message = None
+        #name = None
         try:
             message = await recv_msg_ping(websocket)
             #print(message)
         except websockets.ConnectionClosed:
             print("Connection to peer {!r} closed, exiting handler".format(websocket.remote_address))
+            #figure out how we can allow the user to leave
             break
 
         #decode message
         try:
             data = json.loads(message)
-            #print("Got this message from client: {}".format(message))
-            
             if data['type'] == "login":
-                if data['name'] in users:
-                    await sendTo(websocket,{"type": "login", 
-                            "Success":False})
+                name = data['name']
+                if name in users:#check if the browser is already logged in
+                    await sendTo(websocket,{"type": "login",
+                                            "payload":{"Success":False}})
                     print("sentTo Failed, username already taken")
-                else:
-                    users[data['name']] = {"websocket": websocket}
-                    if data['location']  == "browser": #check if the peer is a browser which is passive and only accepts answers
-                        users[data['name']]['location'] = "browser"
-                        await sendTo(websocket, {"type": "login", 
-                            "Success":True})
-                        #print (users[data['name']])
+                else:#new browser
+                    payload = data['payload']
+                    users[name] = {"websocket": websocket}#set the user to
+                    if payload['location']  == "browser": #check if the peer is a browser which is passive and only accepts answers
+                        users[name]['location'] = "browser"
+                        await sendTo(websocket,{"type": "login",
+                                            "payload":{"Success":True}})
                     else:
-                        users[data['name']]['location'] = "python"
-                        users[data['name']]['websocket'] = websocket#store python clients websocket
+                        users[name]['location'] = "python"
                         await websocket.send("SESSION_OK")
-                        #print(users)
-#                        for key, val in users.items():
-#                            if val['location'] == "browser":#find the browsers
-#                                await sendTo(websocket, {"type": "call", 
-#                                                         "name":key})
-                    #send all of the users a list of names that they can connect to
-                    
-                    for key, val in users.items():    
-                        await sendTo(val['websocket'], {"type":"userLoggedIn",
-                                     "names":list(users.keys())})
-            elif data['type'] == "offer":#check if its an offer, message looks like: {"sdp": {"type": "offer", "sdp":...
-                print("in offer")
-                print("Sending offer to: {}".format(data['sentTo']))
-                #if UserB exists then send him offer details 
-                
-                conn = users[data['sentTo']]['websocket']
-                users[data['name']]['sentTo'] = data['sentTo']
-                
+                    #need to fix this part where if a browser logs in we add all cameras somehow?
+#                    for key, val in users.items():    
+#                        await sendTo(val['websocket'], {"type":"userLoggedIn",
+#                                     "names":list(users.keys())})
+            elif data['type'] == "offer":#check if its an offer, message looks like: {"sdp": {"type": "offer", "sdp":... 
+                name = data['name']
+                sentTo = data['sentTo']
+                users[name]['sentTo'] = sentTo
+                conn = users[sentTo]['websocket']#in the peer we are offering to we store our websocket in there
+                #check if we have a connection to our user stored (essentially if they logged in we should have it)
                 if conn is not None:
-                    #setting that UserA connected with UserB 
-                    #websocket['otherName'] = data['name']
-                    #send to connection B
-#                    if isinstance(data['offer'], str):
-#                        offer = json.loads(data['offer'])
-#                    else:
-#                        offer = data['offer']
-                    offer = data['offer']
+                    payload = data['payload'] #Should look like: {"type":"offer", "sdp":sdp}
                     await sendTo(conn, {"type": "offer", 
-                            "offer":{"type":"offer", "sdp":offer},
+                            "payload":payload,
                             "name":data['name']})#send the current connections name
                     #add other user to my list for retreaval later
                     print("offerFrom: {}, offerTo: {}".format(data['name'], data['sentTo']))
                     
             elif data['type'] == "answer":
-                print("in answer")
-                print("Sending answer to: {}".format(data['sentTo']))
-                conn = users[data['sentTo']]['websocket']
-                users[data['name']]['sentTo'] = data['sentTo']
-                #print("in answer, answer type: {}, and the answer is this: {}".format(type(data['answer']), data['answer']))
-                print("this is what we are sending: {}".format({"type": "answer", 
-                            "answer":data['answer'], "from":data['name']}))
+                name = data['name']
+                sentTo = data['sentTo']
+                conn = users[sentTo]['websocket']
+                users[name]['sentTo'] = sentTo
+                payload = data['payload']
                 if conn is not None:
                     #setting that UserA connected with UserB 
                     await sendTo(conn, {"type": "answer", 
-                            "answer":data['answer'], "from":data['name']})
-                    print("if we got here then we sent an answer!")
+                            "payload":payload, "from":name})
                 #add other user to my list for retreaval later
                 print("answerFrom: {}, answerTo: {}".format(data['name'], data['sentTo']))
             elif data['type'] == "candidate":
@@ -113,14 +93,13 @@ async def signaling(websocket, path):
                 print("Sending candidate ice to: {}".format(users[data['name']]['sentTo']))
                 sendingTo = users[data['name']]['sentTo']#Who am I sending data to
                 conn = users[sendingTo]['websocket']
-                candidate = data['candidate']
-                print("this is what we are sending in candidate: {}".format({"type": "candidate", 
-                            "candidate": data, "from": data['name']}))
+                print("Our data in candidate looks like this: {}".format(data))
+                #payload = data['candidate']# data looks like: {"type": "candidate", "candidate": "candidate:1 1 UDP 2013266431 fe80::b8c2:dcff:feeb:9d7a 53950 typ host", "sdpMLineIndex": 0, "sentTo": "2078", "name": 432}
+                print("this is what we are sending in candidate: {}".format(payload))
                 if conn is not None:
                     #setting that UserA connected with UserB 
                     
-                    await sendTo(conn, {"type": "candidate", 
-                            "candidate": data, "from": data['name']})
+                    await sendTo(conn, data)
                 print("candidate ice From: {}, candidate ice To: {}".format(data['name'], users[data['name']]['sentTo']))
                 
             elif data['type'] == "candidate":
@@ -137,9 +116,7 @@ async def signaling(websocket, path):
                 type(data)
         except:
             print("Got another Message: {}".format(message))
-            print(type(message))
-            print(message.keys())
-            print("Not valid json")
+            print(name)
             
         
         #closing the socket is handled?
@@ -152,7 +129,7 @@ if __name__ == "__main__":
     pathlib.Path("/opt/cert/nginx-selfsigned.crt").with_name('nginx-selfsigned.crt'), pathlib.Path("/opt/cert/nginx-selfsigned.key").with_name('nginx-selfsigned.key'))
     
     asyncio.get_event_loop().run_until_complete(
-        websockets.serve(signaling, '192.168.11.138', 8765, ssl=ssl_context, max_queue=16))
+        websockets.serve(signaling, '127.0.0.1', 8765, ssl=ssl_context, max_queue=16))
     asyncio.get_event_loop().run_forever()
     print('ended')
     users = {}

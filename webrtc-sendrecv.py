@@ -17,23 +17,19 @@ from gi.repository import GstSdp
 
 PIPELINE_DESC = '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
- tcpclientsrc host=192.168.11.31 port=5000 ! gdpdepay ! rtph264depay !avdec_h264 ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
- queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
- audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
- queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
-'''
-
-
-
-'''
-webrtcbin name=sendrecv bundle-policy=max-bundle
  videotestsrc is-live=true pattern=snow ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
  queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
  queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
 '''
 
-
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+ tcpclientsrc host=192.168.11.31 port=5000 ! gdpdepay ! rtph264depay !avdec_h264 ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
+ queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
+ audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
+ queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+'''
 
 class WebRTCClient:
     def __init__(self, id_, peer_id, server):
@@ -47,15 +43,16 @@ class WebRTCClient:
     async def connect(self):
         sslctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         self.conn = await websockets.connect(self.server, ssl=sslctx)
-        await self.conn.send(json.dumps({'type': 'login', 'name': our_id, 'location':'python'}) )
+        await self.conn.send(json.dumps({'type': 'login', 'name': our_id, 'payload': {'location':'python'}}) )
 
     async def setup_call(self):
         await self.conn.send('SESSION {}'.format(self.peer_id))
 
     def send_sdp_offer(self, offer):
-        text = offer.sdp.as_text()
-        print ('Sending offer:\n%s' % text)
-        msg = json.dumps({'type': 'offer', 'offer': text, "sentTo":self.peer_id, "name":self.id_})
+        sdp = offer.sdp.as_text()
+        print ('Sending offer:\n%s' % sdp)
+        payload = {'type': 'offer', 'sdp':sdp}
+        msg = json.dumps({'type': 'offer', "sentTo":self.peer_id, "name":self.id_, 'payload': payload})
         loop = asyncio.new_event_loop()
         loop.run_until_complete(self.conn.send(msg))
 
@@ -105,24 +102,22 @@ class WebRTCClient:
         print("here is our message:!!!!:!!!:!!! {}".format(message))#it isnt finding the stuff in the message!
         if msg['type'] == "answer":
             print("Got into if 'sdp' in msg!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-            sdp = msg['answer']
-            assert(sdp['type'] == 'answer')
-            sdp = sdp['sdp']
+            payload = msg['payload']
+            assert(payload['type'] == 'answer')#make sure its an answer
+            sdp = payload['sdp']
             print ('Received answer:\n%s' % sdp)
             res, sdpmsg = GstSdp.SDPMessage.new()
             GstSdp.sdp_message_parse_buffer(bytes(sdp.encode()), sdpmsg)
             answer = GstWebRTC.WebRTCSessionDescription.new(GstWebRTC.WebRTCSDPType.ANSWER, sdpmsg)
             promise = Gst.Promise.new()
             self.webrtc.emit('set-remote-description', answer, promise)
-            print("got to ice promise")
             promise.interrupt()
         elif msg['type'] == "candidate":
-            msg = msg['candidate']
+            candidate = msg["candidate"]
+            sdpmlineindex = msg["sdpMLineIndex"]
             print("Got into if 'ice' in msg!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+            print("candidate: {}, sdpMLineIndex: {}".format(candidate, sdpmlineindex))
             
-            candidate = msg['candidate']['candidate']
-            print("candidate: {}".format(candidate))
-            sdpmlineindex = msg['candidate']['sdpMLineIndex']
             self.webrtc.emit('add-ice-candidate', sdpmlineindex, candidate)
 
     async def loop(self):
