@@ -93,11 +93,11 @@ class WebRTCClient:
         self.webrtc = self.pipe.get_by_name('sendrecv')
         self.webrtc.connect('on-negotiation-needed', self.on_negotiation_needed)
         self.webrtc.connect('on-ice-candidate', self.send_ice_candidate_message)
-        self.webrtc.connect('pad-added', self.on_incoming_stream)
+        #self.webrtc.connect('pad-added', self.on_incoming_stream)
         self.pipe.set_state(Gst.State.PLAYING)
 
     async def handle_sdp(self, message):
-        assert (self.webrtc)
+        #assert (self.webrtc) #may not need this 
         msg = json.loads(message)
         print("here is our message:!!!!:!!!:!!! {}".format(message))#it isnt finding the stuff in the message!
         if msg['type'] == "answer":
@@ -117,8 +117,10 @@ class WebRTCClient:
             sdpmlineindex = msg["sdpMLineIndex"]
             print("Got into if 'ice' in msg!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
             print("candidate: {}, sdpMLineIndex: {}".format(candidate, sdpmlineindex))
-            
             self.webrtc.emit('add-ice-candidate', sdpmlineindex, candidate)
+        elif msg['type'] == "peer_id":
+            self.peer_id = msg["peer_id"]#set peer id remotely
+            print("the peer id: {}".format(self.peer_id))
 
     async def loop(self):
         assert self.conn
@@ -128,6 +130,8 @@ class WebRTCClient:
             elif message == 'SESSION_OK':
                 print("starting pipeline")
                 self.start_pipeline()
+            elif message == "WAITING_FOR_PEER":
+                print("WAITING FOR PEER")
             elif message.startswith('ERROR'):
                 print (message)
                 return 1
@@ -144,7 +148,6 @@ def check_plugins():
         print('Missing gstreamer plugins:', missing)
         return False
     return True
-
 
 if __name__=='__main__':
     Gst.init(None)

@@ -21,7 +21,7 @@ async def recv_msg_ping(ws):
     msg = None
     while msg is None:
         try:
-            msg = await asyncio.wait_for(ws.recv(), 10)
+            msg = await asyncio.wait_for(ws.recv(), 30)
         except TimeoutError:
             print('Sending keepalive ping to {!r} in recv'.format(ws.remote_address))
             await ws.ping()
@@ -33,7 +33,7 @@ async def signaling(websocket, path):
         #name = None
         try:
             message = await recv_msg_ping(websocket)
-            #print(message)
+            print(message)
         except websockets.ConnectionClosed:
             print("Connection to peer {!r} closed, exiting handler".format(websocket.remote_address))
             #figure out how we can allow the user to leave
@@ -55,9 +55,23 @@ async def signaling(websocket, path):
                         users[name]['location'] = "browser"
                         await sendTo(websocket,{"type": "login",
                                             "payload":{"Success":True}})
+                        peer_ids = []
+                        #we are sending each python client every browser
+                        for key, val in users.items():
+                            print("key {}, val {}".format(key, val))
+                            if val['location'] == "browser" and key not in connected:
+                                peer_ids.append(key)
+                                connected.add(key)
+                        for key, val in users.items():
+                            if val['location'] == "python":
+                                for peer_id in peer_ids:
+                                    await sendTo(val['websocket'], {'type': "peer_id", "peer_id":peer_id})#send all python clients my name to connect to me!
+                                    await val['websocket'].send("SESSION_OK")
                     else:
+                        users[name] = {"websocket": websocket}#set the user to
                         users[name]['location'] = "python"
-                        await websocket.send("SESSION_OK")
+                        print("in python area!")
+                        await websocket.send("WAITING_FOR_PEER")
                     #need to fix this part where if a browser logs in we add all cameras somehow?
 #                    for key, val in users.items():    
 #                        await sendTo(val['websocket'], {"type":"userLoggedIn",
@@ -112,10 +126,10 @@ async def signaling(websocket, path):
             elif data['type'] == "ping":
                 print(data["msg"])
             else:
-                print("Got another Message: {}".format(data))
+                print("Got wrong format: {}".format(data))
                 type(data)
         except:
-            print("Got another Message: {}".format(message))
+            print("Got another Message : {}".format(message))
             print(name)
             
         

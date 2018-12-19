@@ -269,8 +269,9 @@ if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
 function addConnection(name){
   //create our element
   videoElement = document.createElement("video");
-  videoElement.setAttribute("id", "video"+name);
-  videoElement.setAttribute("autoplay", true);
+  var vidName = "video"+name;
+  videoElement.setAttribute("id", vidName);
+  videoElement.setAttribute("autoplay", false);
   callPage.appendChild(videoElement);
 
   var connection = new webkitRTCPeerConnection(configuration);
@@ -282,7 +283,19 @@ function addConnection(name){
   connection.onaddstream = function (e) {
      videoElement.srcObject = e.stream;
   };
+  var playPromise = videoElement.play();
 
+  if (playPromise !== undefined) {
+    playPromise.then(_ => {
+      // Automatic playback started!
+      // Show playing UI.
+    })
+    .catch(error => {
+      console.log("Cant autoplay ", error);
+      // Auto-play was prevented
+      // Show paused UI.
+    });
+  }
   // Setup ice handling
   connection.onicecandidate = function (event) {
 
