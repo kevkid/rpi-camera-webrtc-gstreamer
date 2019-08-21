@@ -22,6 +22,8 @@ sudo -H pip3 install pygi pygobject
 ### How to compile gstreamer1.0-plugins-bad
 #### Dependencies:
 ```sh
+sudo apt install libtool checkinstall libssl-dev
+
 LIBNICE_VERSION="0.1.16" # libnice (v>=0.1.14) needed for webrtcbin
 LIBSRTP_VERSION="2.2.0" # libsrtp (v>=2.2.0) required for srtp plugin
 WEBRTCAUDIO_VERSION="0.3.1" # webrtc-audio-processing required for webrtcdsp
