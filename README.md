@@ -92,7 +92,7 @@ sudo cp ./gst-libs/gst/webrtc/GstWebRTC-1.0.typelib /usr/lib/girepository-1.0/
 ```
 
 ```sh
-export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0
+export GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0:/usr/lib/gstreamer-1.0
 export OPENSSL_CONF=""
 #(you may want to put this in your .bashrc file)
 ```
