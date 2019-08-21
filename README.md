@@ -1,8 +1,11 @@
 # rpi-camera-webrtc-gstreamer
 
 ## Instructions:
-
-You must have minimum gstreamer1.0 version 1.14.2
+### install websockets
+```
+sudo -H pip3 install websockets
+```
+***You must have minimum gstreamer1.0 version 1.14.2***
 follow this: http://lifestyletransfer.com/how-to-install-gstreamer-on-ubuntu/
 **don't install gstreamer1.0-plugins-bad**
 
@@ -97,3 +100,8 @@ There may be more details here: https://github.com/centricular/gstwebrtc-demos/i
 ```sudo apt install nginx```
 Here is how to generate the certs https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04
 
+# How to run server
+python3 signaling_server.py
+
+# How to run client
+python3 webrtc-sendrecv.py --server "wss://127.0.0.1:8765" 1
