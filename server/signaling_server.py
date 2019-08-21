@@ -72,6 +72,7 @@ async def signaling(websocket, path):
                         users[name]['location'] = "python"
                         print("in python area!")
                         await websocket.send("WAITING_FOR_PEER")
+                        print("sent waiting for peer to python")
                     #need to fix this part where if a browser logs in we add all cameras somehow?
 #                    for key, val in users.items():    
 #                        await sendTo(val['websocket'], {"type":"userLoggedIn",
@@ -143,7 +144,8 @@ if __name__ == "__main__":
     pathlib.Path("/opt/cert/nginx-selfsigned.crt").with_name('nginx-selfsigned.crt'), pathlib.Path("/opt/cert/nginx-selfsigned.key").with_name('nginx-selfsigned.key'))
     
     asyncio.get_event_loop().run_until_complete(
-        websockets.serve(signaling, '127.0.0.1', 8765, ssl=ssl_context, max_queue=16))
+	#websockets.serve(signaling, '127.0.0.1', 8765, ssl=ssl_context, max_queue=16))
+        websockets.serve(signaling, '192.168.11.148', 8765, ssl=ssl_context, max_queue=16))
     asyncio.get_event_loop().run_forever()
     print('ended')
     users = {}

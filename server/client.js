@@ -1,3 +1,4 @@
+//var connection = new WebSocket('wss://192.168.11.148:8765');
 var connection = new WebSocket('wss://127.0.0.1:8765');
 var name = "";
 
@@ -77,7 +78,7 @@ function onLogin(payload) {
     alert("oops...try a different username");
   } else {
   configuration = {
-    "iceServers": [{ "url": "stun:stun.1.google.com:19302" }]
+    "iceServers": [{ "url": "stun:stun.l.google.com:19302" }]
       };
    }
 };
@@ -91,7 +92,11 @@ function onLogin(payload) {
       //**********************
 
       //getting local video stream
-      navigator.webkitGetUserMedia({ video: true, audio: true }, function (myStream) {
+      navigator.getUserMedia = ( navigator.getUserMedia ||
+                       navigator.webkitGetUserMedia ||
+                       navigator.mozGetUserMedia ||
+                       navigator.msGetUserMedia);
+      navigator.getUserMedia({ video: true, audio: true }, function (myStream) {
          stream = myStream;
 
          //displaying local video stream on the page
@@ -178,6 +183,7 @@ connectToOtherUsernameBtn.addEventListener("click", function () {
 
       }, function (error) {
          alert("Error when creating an offer");
+	 alert(error);
       });
    }
 });
@@ -205,6 +211,7 @@ function handleOffer(data) {
 
    }, function (error) {
       alert("Error when creating an answer");
+      alert(error);
    });
 };
 
@@ -274,7 +281,7 @@ function addConnection(name){
   videoElement.setAttribute("autoplay", false);
   callPage.appendChild(videoElement);
 
-  var connection = new webkitRTCPeerConnection(configuration);
+  var connection = new RTCPeerConnection(configuration);
 
   // setup stream listening
   //connection.addStream(stream);//my stream?

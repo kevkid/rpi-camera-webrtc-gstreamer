@@ -6,7 +6,7 @@ import os
 import sys
 import json
 import argparse
-
+import time
 import gi
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst
@@ -17,7 +17,85 @@ from gi.repository import GstSdp
 
 PIPELINE_DESC = '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
- videotestsrc is-live=true pattern=snow ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
+  rpicamsrc bitrate=10000000 ! video/x-h264,profile=constrained-baseline,width=1280,height=720,level=3.0 ! queue ! h264parse ! rtph264pay config-interval=-1 ! 
+ queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
+
+'''
+
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+  videotestsrc pattern=snow is-live=true ! x264enc tune=zerolatency  bitrate=1000 speed-preset=ultrafast ! video/x-h264,profile=constrained-baseline,width=176,height=144 ! queue ! rtph264pay config-interval=-1 pt=96 ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
+'''
+
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+  tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay ! video/x-h264,profile=baseline,width=640,height=360,framerate=20/1 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
+'''
+#############################################
+'''
+webrtcbin name=sendrecv 
+ rpicamsrc bitrate=1000000 ! video/x-h264,profile=baseline,width=640,height=360,framerate=20/1,level=3.1 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
+'''
+
+'''
+webrtcbin name=sendrecv 
+ rpicamsrc bitrate=600000 annotation-mode=12 preview=false ! video/x-h264,profile=baseline,width=640,height=360,framerate=20/1,level=3.1 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 ! application/x-rtp,media=video,encoding-name=H264,payload=100 ! sendrecv.
+'''
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+ tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay ! avdec_h264 ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
+'''
+
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+ videotestsrc pattern=snow is-live=true ! x264enc tune=zerolatency  bitrate=1000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=1 ! 
+ queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
+ audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
+ queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+'''
+
+
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+ tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay ! avdec_h264 ! videoconvert ! queue ! x264enc tune=zerolatency  bitrate=2000 speed-preset=ultrafast ! h264parse ! rtph264pay config-interval=-1 ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
+'''
+
+'''
+webrtcbin name=sendrecv 
+ tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay ! video/x-h264,profile=constrained-baseline,width=640,height=360,level=3.0 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 name=payloader ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
+'''
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+ videotestsrc is-live=true ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 ! 
+ queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
+ audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
+ queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+'''
+#this works videotestsrc h264enc on firefox, chrome gives artifacts
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+ tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay ! avdec_h264 ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
  queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
  queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
@@ -25,11 +103,14 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
 
 '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
- tcpclientsrc host=192.168.11.31 port=5000 ! gdpdepay ! rtph264depay !avdec_h264 ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
+ videotestsrc is-live=true pattern=snow ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
  queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
  queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
 '''
+
+
+
 
 class WebRTCClient:
     def __init__(self, id_, peer_id, server):
@@ -93,7 +174,7 @@ class WebRTCClient:
         self.webrtc = self.pipe.get_by_name('sendrecv')
         self.webrtc.connect('on-negotiation-needed', self.on_negotiation_needed)
         self.webrtc.connect('on-ice-candidate', self.send_ice_candidate_message)
-        #self.webrtc.connect('pad-added', self.on_incoming_stream)
+        self.webrtc.connect('pad-added', self.on_incoming_stream)
         self.pipe.set_state(Gst.State.PLAYING)
 
     async def handle_sdp(self, message):
@@ -124,6 +205,7 @@ class WebRTCClient:
 
     async def loop(self):
         assert self.conn
+        print(self.conn)
         async for message in self.conn:
             if message == 'HELLO':
                 await self.setup_call()
