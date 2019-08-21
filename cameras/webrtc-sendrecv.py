@@ -15,7 +15,22 @@ from gi.repository import GstWebRTC
 gi.require_version('GstSdp', '1.0')
 from gi.repository import GstSdp
 
+''' this profile works: profile-level-id=42e01e 
+profile_idc 0x42 == 66 so it is Baseline profile, 
+profile-iop 0xe0 = 224 High 4:4:4 Intra Profile (244 with constraint set 3)
+level 0x1e = 30 = level is 3.0
+
+'''
+
+#This works on both chome and ff
 PIPELINE_DESC = '''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+  videotestsrc is-live=true ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 ! 
+ queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
+
+'''
+
+'''
 webrtcbin name=sendrecv bundle-policy=max-bundle
   rpicamsrc bitrate=10000000 ! video/x-h264,profile=constrained-baseline,width=1280,height=720,level=3.0 ! queue ! h264parse ! rtph264pay config-interval=-1 ! 
  queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
