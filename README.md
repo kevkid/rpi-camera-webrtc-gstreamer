@@ -105,3 +105,6 @@ python3 signaling_server.py
 
 # How to run client
 python3 webrtc-sendrecv.py --server "wss://127.0.0.1:8765" 1
+
+# Credit:
+https://github.com/centricular/gstwebrtc-demos
