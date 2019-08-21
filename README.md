@@ -22,7 +22,7 @@ sudo -H pip3 install pygi pygobject
 ### How to compile gstreamer1.0-plugins-bad
 #### Dependencies:
 ```sh
-sudo apt install libtool checkinstall libssl-dev
+sudo apt install libtool checkinstall libssl-dev gtk-doc-tools libgstreamer-plugins-base1.0-dev
 
 LIBNICE_VERSION="0.1.16" # libnice (v>=0.1.14) needed for webrtcbin
 LIBSRTP_VERSION="2.2.0" # libsrtp (v>=2.2.0) required for srtp plugin
@@ -84,7 +84,7 @@ cd ..
 ```sh
 git clone https://github.com/GStreamer/gst-plugins-bad.git
 cd gst-plugins-bad
-git checkout 1.14.2
+git checkout 1.14.2 #Set you correct verion by checking what version of gstreamer you currently have.
 ./autogen.sh --enable-introspection 2>&1 | tee config_log.txt
 make
 sudo make install
