@@ -2,7 +2,7 @@
 
    <head>
       <title>WebRTC Video Demo</title>
-      <link rel = "stylesheet" href = "node_modules/bootstrap/dist/css/bootstrap.min.css"/>
+      <!--<link rel = "stylesheet" href = "node_modules/bootstrap/dist/css/bootstrap.min.css"/>-->
    </head>
 
    <style>
@@ -41,7 +41,8 @@
 
    </div>
 
-   <script src = "client.js"></script>
+   <!--<script src = "client.js"></script>-->
+   <script type="text/javascript" src="{{ url_for('static', filename='client.js') }}"></script>
 
    </body>
 

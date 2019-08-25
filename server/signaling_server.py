@@ -74,10 +74,10 @@ async def signaling(websocket, path):
                         await websocket.send("WAITING_FOR_PEER")
                         print("sent waiting for peer to python")
                     #need to fix this part where if a browser logs in we add all cameras somehow?
-#                    for key, val in users.items():    
+#                    for key, val in users.items():
 #                        await sendTo(val['websocket'], {"type":"userLoggedIn",
 #                                     "names":list(users.keys())})
-            elif data['type'] == "offer":#check if its an offer, message looks like: {"sdp": {"type": "offer", "sdp":... 
+            elif data['type'] == "offer":#check if its an offer, message looks like: {"sdp": {"type": "offer", "sdp":...
                 name = data['name']
                 sentTo = data['sentTo']
                 users[name]['sentTo'] = sentTo
@@ -85,12 +85,12 @@ async def signaling(websocket, path):
                 #check if we have a connection to our user stored (essentially if they logged in we should have it)
                 if conn is not None:
                     payload = data['payload'] #Should look like: {"type":"offer", "sdp":sdp}
-                    await sendTo(conn, {"type": "offer", 
+                    await sendTo(conn, {"type": "offer",
                             "payload":payload,
                             "name":data['name']})#send the current connections name
                     #add other user to my list for retreaval later
                     print("offerFrom: {}, offerTo: {}".format(data['name'], data['sentTo']))
-                    
+
             elif data['type'] == "answer":
                 name = data['name']
                 sentTo = data['sentTo']
@@ -98,8 +98,8 @@ async def signaling(websocket, path):
                 users[name]['sentTo'] = sentTo
                 payload = data['payload']
                 if conn is not None:
-                    #setting that UserA connected with UserB 
-                    await sendTo(conn, {"type": "answer", 
+                    #setting that UserA connected with UserB
+                    await sendTo(conn, {"type": "answer",
                             "payload":payload, "from":name})
                 #add other user to my list for retreaval later
                 print("answerFrom: {}, answerTo: {}".format(data['name'], data['sentTo']))
@@ -112,17 +112,17 @@ async def signaling(websocket, path):
                 #payload = data['candidate']# data looks like: {"type": "candidate", "candidate": "candidate:1 1 UDP 2013266431 fe80::b8c2:dcff:feeb:9d7a 53950 typ host", "sdpMLineIndex": 0, "sentTo": "2078", "name": 432}
                 print("this is what we are sending in candidate: {}".format(payload))
                 if conn is not None:
-                    #setting that UserA connected with UserB 
-                    
+                    #setting that UserA connected with UserB
+
                     await sendTo(conn, data)
                 print("candidate ice From: {}, candidate ice To: {}".format(data['name'], users[data['name']]['sentTo']))
-                
+
             elif data['type'] == "candidate":
                 print("Disconnecting: {}".format(users[data['name']]['sentTo']))
                 sendingTo = users[data['name']]['sentTo']#Who am I sending data to
                 conn = users[sendingTo]['websocket']
                 if conn is not None:
-                    #setting that UserA connected with UserB 
+                    #setting that UserA connected with UserB
                     await sendTo(conn, {"type": "leave"})
             elif data['type'] == "ping":
                 print(data["msg"])
@@ -132,8 +132,8 @@ async def signaling(websocket, path):
         except:
             print("Got another Message : {}".format(message))
             print(name)
-            
-        
+
+
         #closing the socket is handled?
         #await websocket.send(json.dumps({"msg": "Hello_World!!!!"}))
 if __name__ == "__main__":
@@ -142,7 +142,7 @@ if __name__ == "__main__":
     ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ssl_context.load_cert_chain(
     pathlib.Path("/opt/cert/nginx-selfsigned.crt").with_name('nginx-selfsigned.crt'), pathlib.Path("/opt/cert/nginx-selfsigned.key").with_name('nginx-selfsigned.key'))
-    
+
     asyncio.get_event_loop().run_until_complete(
 	websockets.serve(signaling, '127.0.0.1', 8765, ssl=ssl_context, max_queue=16))
         #websockets.serve(signaling, '192.168.11.148', 8765, ssl=ssl_context, max_queue=16))

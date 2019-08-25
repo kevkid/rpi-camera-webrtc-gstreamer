@@ -15,8 +15,8 @@ from gi.repository import GstWebRTC
 gi.require_version('GstSdp', '1.0')
 from gi.repository import GstSdp
 
-''' this profile works: profile-level-id=42e01e 
-profile_idc 0x42 == 66 so it is Baseline profile, 
+''' this profile works: profile-level-id=42e01e
+profile_idc 0x42 == 66 so it is Baseline profile,
 profile-iop 0xe0 = 224 High 4:4:4 Intra Profile (244 with constraint set 3)
 level 0x1e = 30 = level is 3.0
 
@@ -25,14 +25,22 @@ level 0x1e = 30 = level is 3.0
 #This works on both chome and ff
 PIPELINE_DESC = '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
-  videotestsrc is-live=true ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 ! 
+ videotestsrc is-live=true pattern=snow ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
+ queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
+ audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
+ queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
+'''
+
+'''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+  videotestsrc is-live=true pattern=snow ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 !
  queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
 
 '''
 
 '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
-  rpicamsrc bitrate=10000000 ! video/x-h264,profile=constrained-baseline,width=1280,height=720,level=3.0 ! queue ! h264parse ! rtph264pay config-interval=-1 ! 
+  rpicamsrc bitrate=10000000 ! video/x-h264,profile=constrained-baseline,width=1280,height=720,level=3.0 ! queue ! h264parse ! rtph264pay config-interval=-1 !
  queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
 
 '''
@@ -50,12 +58,12 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
 '''
 #############################################
 '''
-webrtcbin name=sendrecv 
+webrtcbin name=sendrecv
  rpicamsrc bitrate=1000000 ! video/x-h264,profile=baseline,width=640,height=360,framerate=20/1,level=3.1 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
 '''
 
 '''
-webrtcbin name=sendrecv 
+webrtcbin name=sendrecv
  rpicamsrc bitrate=600000 annotation-mode=12 preview=false ! video/x-h264,profile=baseline,width=640,height=360,framerate=20/1,level=3.1 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 ! application/x-rtp,media=video,encoding-name=H264,payload=100 ! sendrecv.
 '''
 
@@ -67,7 +75,7 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
 
 '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
- videotestsrc pattern=snow is-live=true ! x264enc tune=zerolatency  bitrate=1000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=1 ! 
+ videotestsrc pattern=snow is-live=true ! x264enc tune=zerolatency  bitrate=1000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=1 !
  queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
  queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
@@ -81,13 +89,13 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
 '''
 
 '''
-webrtcbin name=sendrecv 
+webrtcbin name=sendrecv
  tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay ! video/x-h264,profile=constrained-baseline,width=640,height=360,level=3.0 ! queue max-size-time=100000000 ! h264parse ! rtph264pay config-interval=-1 name=payloader ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.
 '''
 
 '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
- videotestsrc is-live=true ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 ! 
+ videotestsrc is-live=true ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 !
  queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
  audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
  queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
@@ -193,7 +201,7 @@ class WebRTCClient:
         self.pipe.set_state(Gst.State.PLAYING)
 
     async def handle_sdp(self, message):
-        #assert (self.webrtc) #may not need this 
+        #assert (self.webrtc) #may not need this
         msg = json.loads(message)
         print("here is our message:!!!!:!!!:!!! {}".format(message))#it isnt finding the stuff in the message!
         if msg['type'] == "answer":
