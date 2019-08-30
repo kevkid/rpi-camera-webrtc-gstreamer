@@ -23,18 +23,10 @@ level 0x1e = 30 = level is 3.0
 '''
 
 #This works on both chome and ff
+
 PIPELINE_DESC = '''
 webrtcbin name=sendrecv bundle-policy=max-bundle
- videotestsrc is-live=true pattern=snow ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay !
- queue ! application/x-rtp,media=video,encoding-name=VP8,payload=97 ! sendrecv.
- audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay !
- queue ! application/x-rtp,media=audio,encoding-name=OPUS,payload=96 ! sendrecv.
-'''
-
-'''
-webrtcbin name=sendrecv bundle-policy=max-bundle
-  videotestsrc is-live=true pattern=snow ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay config-interval=-1 !
- queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
+  videotestsrc is-live=true pattern=snow ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay 	config-interval=-1 ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
 
 '''
 
@@ -136,18 +128,20 @@ webrtcbin name=sendrecv bundle-policy=max-bundle
 
 
 class WebRTCClient:
-    def __init__(self, id_, peer_id, server):
+    def __init__(self, id_, peer_id, server, ip, port):
         self.id_ = id_
         self.conn = None
         self.pipe = None
         self.webrtc = None
         self.peer_id = peer_id
         self.server = server or 'wss://webrtc.nirbheek.in:8443'
+        self.ip = ip
+        self.port = port
 
     async def connect(self):
         sslctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         self.conn = await websockets.connect(self.server, ssl=sslctx)
-        await self.conn.send(json.dumps({'type': 'login', 'name': our_id, 'payload': {'location':'python'}}) )
+        await self.conn.send(json.dumps({'type': 'login', 'name': self.id_, 'payload': {'location':'python'}}) )
 
     async def setup_call(self):
         await self.conn.send('SESSION {}'.format(self.peer_id))
@@ -192,7 +186,19 @@ class WebRTCClient:
         decodebin.sync_state_with_parent()
         self.webrtc.link(decodebin)
 
-    def start_pipeline(self):
+    def start_pipeline(self):#This needs to get fixed unsecure
+        print(self.ip)
+        PIPELINE_DESC = '''
+        webrtcbin name=sendrecv bundle-policy=max-bundle
+          videotestsrc is-live=true pattern=snow ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay 	config-interval=-1 ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
+
+        '''
+
+        '''
+        webrtcbin name=sendrecv bundle-policy=max-bundle
+        tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay !
+        h264parse ! video/x-h264,profile=constrained-baseline,level=3.0 ! queue ! h264parse ! rtph264pay config-interval=-1 !
+        queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
         self.pipe = Gst.parse_launch(PIPELINE_DESC)
         self.webrtc = self.pipe.get_by_name('sendrecv')
         self.webrtc.connect('on-negotiation-needed', self.on_negotiation_needed)
@@ -264,7 +270,7 @@ if __name__=='__main__':
     args = parser.parse_args()
     print(args)
     our_id = random.randrange(10, 10000)
-    c = WebRTCClient(our_id, args.peerid, args.server)
+    c = WebRTCClient(our_id, args.peerid, args.server, '','')
     asyncio.get_event_loop().run_until_complete(c.connect())
     res = asyncio.get_event_loop().run_until_complete(c.loop())
     sys.exit(res)

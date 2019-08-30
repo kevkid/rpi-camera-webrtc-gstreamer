@@ -160,8 +160,32 @@ function onDataChannel(event) {
     receiveChannel.onerror = handleDataChannelError;
     receiveChannel.onclose = handleDataChannelClose;
 }
+function add_camera(){
+     var callToUsername = otherUsernameInput.value;
+     if (callToUsername.length > 0) {
+        addConnection(callToUsername)
+        console.log("RTCPeerConnection object was created");
+        console.log(connections[connectedUser]);
+        connectedUser = callToUsername;
 
+        // create an offer
+        connections[callToUsername].createOffer(function (offer) {
+           send({
+              type: "offer",
+              offer: offer,
+              sentTo: callToUsername
+           });
+           //When creating an offer we always set the offer we created to our local description
+           connections[callToUsername].setLocalDescription(offer);
+
+        }, function (error) {
+           alert("Error when creating an offer");
+  	 alert(error);
+        });
+     };
+}
 //initiating a call, add camera from browser?
+/*
 connectToOtherUsernameBtn.addEventListener("click", function () {
    var callToUsername = otherUsernameInput.value;
 
@@ -187,7 +211,7 @@ connectToOtherUsernameBtn.addEventListener("click", function () {
       });
    }
 });
-
+*/
 //when somebody sends us an offer
 //when somebody sends us an offer we always set that offer given to us as our remote description
 function handleOffer(data) {
@@ -278,7 +302,7 @@ function addConnection(name){
   videoElement = document.createElement("video");
   var vidName = "video"+name;
   videoElement.setAttribute("id", vidName);
-  videoElement.setAttribute("autoplay", false);
+  videoElement.setAttribute("autoplay", true);
   callPage.appendChild(videoElement);
 
   var connection = new RTCPeerConnection(configuration);

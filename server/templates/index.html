@@ -3,6 +3,8 @@
    <head>
       <title>WebRTC Video Demo</title>
       <!--<link rel = "stylesheet" href = "node_modules/bootstrap/dist/css/bootstrap.min.css"/>-->
+      <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+
    </head>
 
    <style>
@@ -29,7 +31,7 @@
 
       <div >
 
-         <input type = "text" id = "otherUsernameInput" />
+         <input type = "text" id = "otherUsernameInput" value="127.0.0.1:5000"/>
          <button id = "connectToOtherUsernameBtn">Establish connection with another camera?</button>
       </div>
 		<div>
@@ -43,7 +45,31 @@
 
    <!--<script src = "client.js"></script>-->
    <script type="text/javascript" src="{{ url_for('static', filename='client.js') }}"></script>
+   <script>
+   $( "#connectToOtherUsernameBtn" ).click(function() {
+     //I think what should happen is to enter the ip address of the camera, then store that ip, then we can use the ip start a new pipeline,
+     //after the pipeline will launch a webrtc client when the browser enters the page?
+     //we store all of the ip addresses so we can make the "call" by initiating a new webrtc client.
 
+     var server_addr = 'https://' + $("#otherUsernameInput").val();
+     server_addr += '/get_req_for_cam'
+     data = {'server' : 'wss://127.0.0.1:8765'};//servers address
+     $.ajax({
+        type: "POST",
+        url: server_addr,
+        data: JSON.stringify(data, null, '\t'),
+        contentType: 'application/json;charset=UTF-8',
+        success: null,
+      }).done(function() {
+        alert( "second success" );
+        location.reload();//refresh the page to get some cameras!
+        //add_camera();
+      }).fail(function (e){
+        alert( "Something went wrong? Is it the right address?" );
+      });
+    });
+
+   </script>
    </body>
 
 </html>
