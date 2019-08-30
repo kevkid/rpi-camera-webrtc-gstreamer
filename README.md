@@ -112,7 +112,7 @@ python3 webrtc-sendrecv.py --server "wss://127.0.0.1:8765" 1
 
 #This works for server
 ```
-gst-launch-1.0 -v videotestsrc ! x264enc speed-preset=ultrafast ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! udpsink port=7001
+gst-launch-1.0 -v videotestsrc ! x264enc speed-preset=ultrafast ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink port=7001
 ```
 #This works for client in bash
 
@@ -130,7 +130,7 @@ PIPELINE_DESC = '''
 ### If you want to use the camera, run this on the camera setting your host to the correct ip address of the server consuming the stream
 
 ```
-gst-launch-1.0 -v rpicamsrc bitrate=1000000 ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! udpsink host=192.168.XXX.XXX port=7001
+gst-launch-1.0 -v rpicamsrc bitrate=1000000 ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink host=192.168.XXX.XXX port=7001
 ```
 # Credit:
 https://github.com/centricular/gstwebrtc-demos

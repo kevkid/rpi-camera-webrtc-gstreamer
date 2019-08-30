@@ -24,7 +24,14 @@ level 0x1e = 30 = level is 3.0
 
 #This works on both chome and ff
 
+
 PIPELINE_DESC = '''
+webrtcbin name=sendrecv bundle-policy=max-bundle
+udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay !
+h264parse ! queue ! rtph264pay config-interval=-1 !
+queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
+
+'''
 webrtcbin name=sendrecv bundle-policy=max-bundle
   videotestsrc is-live=true pattern=snow ! x264enc tune=zerolatency  bitrate=5000 speed-preset=ultrafast  ! queue !  rtph264pay 	config-interval=-1 ! queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.
 
@@ -187,18 +194,6 @@ class WebRTCClient:
         self.webrtc.link(decodebin)
 
     def start_pipeline(self):#This needs to get fixed unsecure
-        print(self.ip)
-        PIPELINE_DESC = '''
-	webrtcbin name=sendrecv bundle-policy=max-bundle
-        udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay !
-        h264parse ! rtph264pay config-interval=-1 !
-        queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
-
-        '''
-        webrtcbin name=sendrecv bundle-policy=max-bundle
-        tcpclientsrc host=192.168.11.32 port=5000 ! gdpdepay ! rtph264depay !
-        h264parse ! video/x-h264,profile=constrained-baseline,level=3.0 ! queue ! h264parse ! rtph264pay config-interval=-1 !
-        queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
         self.pipe = Gst.parse_launch(PIPELINE_DESC)
         self.webrtc = self.pipe.get_by_name('sendrecv')
         self.webrtc.connect('on-negotiation-needed', self.on_negotiation_needed)
