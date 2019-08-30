@@ -108,5 +108,29 @@ python3 signaling_server.py
 # How to run client
 python3 webrtc-sendrecv.py --server "wss://127.0.0.1:8765" 1
 
+# Current pipelines:
+
+#This works for server
+```
+gst-launch-1.0 -v videotestsrc ! x264enc speed-preset=ultrafast ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! udpsink port=7001
+```
+#This works for client in bash
+
+gst-launch-1.0 udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay ! h264parse ! avdec_h264 ! autovideosink
+
+#This works for webrtcclient
+```
+PIPELINE_DESC = '''
+	webrtcbin name=sendrecv bundle-policy=max-bundle
+        udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay ! 
+        h264parse ! rtph264pay config-interval=-1 !
+        queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
+
+```
+### If you want to use the camera, run this on the camera setting your host to the correct ip address of the server consuming the stream
+
+```
+gst-launch-1.0 -v rpicamsrc bitrate=1000000 ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! udpsink host=192.168.XXX.XXX port=7001
+```
 # Credit:
 https://github.com/centricular/gstwebrtc-demos
