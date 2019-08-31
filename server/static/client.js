@@ -302,6 +302,7 @@ function addConnection(name){
   videoElement = document.createElement("video");
   var vidName = "video"+name;
   videoElement.setAttribute("id", vidName);
+  videoElement.setAttribute("controls", true);
   videoElement.setAttribute("autoplay", true);
   callPage.appendChild(videoElement);
 

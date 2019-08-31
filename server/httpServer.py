@@ -64,18 +64,25 @@ def get_req_for_cam():
     p.start()
     #run_client_local(server)
 
+import json
+def open_config(location):
+    with open(location) as json_file:
+        config = json.load(json_file)
+        return config
+
 if __name__ == '__main__':
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
     import time
     time.sleep(1)
-    server = 'wss://127.0.0.1:8765'
-    servers = ['192.168.11.32:5000']
-    for i in servers:#2 cameras
+    config = open_config('config.json')
+    cameras = config['cameras']
+    wsserver = config['wsserver']
+    for i in cameras:#2 cameras
         camera = i.split(':')
         print(camera)
-        p = multiprocessing.Process(target=run_client_local, args=(server, camera[0], camera[1]))
-        #p.start()
+        p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], camera[1]))
+        p.start()
     print('server pid: {}'.format(p.pid))
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")
