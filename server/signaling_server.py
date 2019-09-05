@@ -1,19 +1,58 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+#
+# Example 1-1 call signalling server
+#
+# Copyright (C) 2017 Centricular Ltd.
+#
+#  Author: Nirbheek Chauhan <nirbheek@centricular.com>
+#
 
+import os
+import sys
+import ssl
+import logging
 import asyncio
 import websockets
-import json
-import ssl
-import pathlib
+import argparse
+import http
+
 from concurrent.futures._base import TimeoutError
-users = {}
-connected = set()
 
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+# See: host, port in https://docs.python.org/3/library/asyncio-eventloop.html#asyncio.loop.create_server
+parser.add_argument('--addr', default='', help='Address to listen on (default: all interfaces, both ipv4 and ipv6)')
+parser.add_argument('--port', default=8443, type=int, help='Port to listen on')
+parser.add_argument('--keepalive-timeout', dest='keepalive_timeout', default=30, type=int, help='Timeout for keepalive (in seconds)')
+parser.add_argument('--cert-path', default=os.path.dirname(__file__))
+parser.add_argument('--disable-ssl', default=False, help='Disable ssl', action='store_true')
+parser.add_argument('--health', default='/health', help='Health check route')
 
-async def sendTo(websocket, message):
-    await websocket.send(json.dumps(message))
+options = parser.parse_args(sys.argv[1:])
 
-async def recv_msg_ping(ws):
+ADDR_PORT = (options.addr, options.port)
+KEEPALIVE_TIMEOUT = options.keepalive_timeout
+
+############### Global data ###############
+
+# Format: {uid: (Peer WebSocketServerProtocol,
+#                remote_address,
+#                <'session'|room_id|None>)}
+peers = dict()
+# Format: {caller_uid: callee_uid,
+#          callee_uid: caller_uid}
+# Bidirectional mapping between the two peers
+sessions = dict()
+# Format: {room_id: {peer1_id, peer2_id, peer3_id, ...}}
+# Room dict with a set of peers in each room
+rooms = dict()
+
+############### Helper functions ###############
+
+async def health_check(path, request_headers):
+    if path == options.health:
+        return http.HTTPStatus.OK, [], b"OK\n"
+
+async def recv_msg_ping(ws, raddr):
     '''
     Wait for a message forever, and send a regular ping to prevent bad routers
     from closing the connection.
@@ -21,131 +60,229 @@ async def recv_msg_ping(ws):
     msg = None
     while msg is None:
         try:
-            msg = await asyncio.wait_for(ws.recv(), 30)
+            msg = await asyncio.wait_for(ws.recv(), KEEPALIVE_TIMEOUT)
         except TimeoutError:
-            print('Sending keepalive ping to {!r} in recv'.format(ws.remote_address))
+            print('Sending keepalive ping to {!r} in recv'.format(raddr))
             await ws.ping()
     return msg
 
-async def signaling(websocket, path):
-    while(True):
-        message = None
-        #name = None
-        try:
-            message = await recv_msg_ping(websocket)
-            print(message)
-        except websockets.ConnectionClosed:
-            print("Connection to peer {!r} closed, exiting handler".format(websocket.remote_address))
-            #figure out how we can allow the user to leave
-            break
+async def disconnect(ws, peer_id):
+    '''
+    Remove @peer_id from the list of sessions and close our connection to it.
+    This informs the peer that the session and all calls have ended, and it
+    must reconnect.
+    '''
+    global sessions
+    if peer_id in sessions:
+        del sessions[peer_id]
+    # Close connection
+    if ws and ws.open:
+        # Don't care about errors
+        asyncio.ensure_future(ws.close(reason='hangup'))
 
-        #decode message
-        try:
-            data = json.loads(message)
-            if data['type'] == "login":
-                name = data['name']
-                if name in users:#check if the browser is already logged in
-                    await sendTo(websocket,{"type": "login",
-                                            "payload":{"Success":False}})
-                    print("sentTo Failed, username already taken")
-                else:#new browser
-                    payload = data['payload']
-                    users[name] = {"websocket": websocket}#set the user to
-                    if payload['location']  == "browser": #check if the peer is a browser which is passive and only accepts answers
-                        users[name]['location'] = "browser"
-                        await sendTo(websocket,{"type": "login",
-                                            "payload":{"Success":True}})
-                        peer_ids = []
-                        #we are sending each python client every browser
-                        for key, val in users.items():
-                            print("key {}, val {}".format(key, val))
-                            if val['location'] == "browser" and key not in connected:
-                                peer_ids.append(key)
-                                connected.add(key)
-                        for key, val in users.items():
-                            if val['location'] == "python":
-                                for peer_id in peer_ids:
-                                    await sendTo(val['websocket'], {'type': "peer_id", "peer_id":peer_id})#send all python clients my name to connect to me!
-                                    await val['websocket'].send("SESSION_OK")
-                    else:
-                        users[name] = {"websocket": websocket}#set the user to
-                        users[name]['location'] = "python"
-                        print("in python area!")
-                        await websocket.send("WAITING_FOR_PEER")
-                        print("sent waiting for peer to python")
-                    #need to fix this part where if a browser logs in we add all cameras somehow?
-#                    for key, val in users.items():
-#                        await sendTo(val['websocket'], {"type":"userLoggedIn",
-#                                     "names":list(users.keys())})
-            elif data['type'] == "offer":#check if its an offer, message looks like: {"sdp": {"type": "offer", "sdp":...
-                name = data['name']
-                sentTo = data['sentTo']
-                users[name]['sentTo'] = sentTo
-                conn = users[sentTo]['websocket']#in the peer we are offering to we store our websocket in there
-                #check if we have a connection to our user stored (essentially if they logged in we should have it)
-                if conn is not None:
-                    payload = data['payload'] #Should look like: {"type":"offer", "sdp":sdp}
-                    await sendTo(conn, {"type": "offer",
-                            "payload":payload,
-                            "name":data['name']})#send the current connections name
-                    #add other user to my list for retreaval later
-                    print("offerFrom: {}, offerTo: {}".format(data['name'], data['sentTo']))
+async def cleanup_session(uid):
+    if uid in sessions:
+        other_id = sessions[uid]
+        del sessions[uid]
+        print("Cleaned up {} session".format(uid))
+        if other_id in sessions:
+            del sessions[other_id]
+            print("Also cleaned up {} session".format(other_id))
+            # If there was a session with this peer, also
+            # close the connection to reset its state.
+            if other_id in peers:
+                print("Closing connection to {}".format(other_id))
+                wso, oaddr, _ = peers[other_id]
+                del peers[other_id]
+                await wso.close()
 
-            elif data['type'] == "answer":
-                name = data['name']
-                sentTo = data['sentTo']
-                conn = users[sentTo]['websocket']
-                users[name]['sentTo'] = sentTo
-                payload = data['payload']
-                if conn is not None:
-                    #setting that UserA connected with UserB
-                    await sendTo(conn, {"type": "answer",
-                            "payload":payload, "from":name})
-                #add other user to my list for retreaval later
-                print("answerFrom: {}, answerTo: {}".format(data['name'], data['sentTo']))
-            elif data['type'] == "candidate":
-                print("in candidate")
-                print("Sending candidate ice to: {}".format(users[data['name']]['sentTo']))
-                sendingTo = users[data['name']]['sentTo']#Who am I sending data to
-                conn = users[sendingTo]['websocket']
-                print("Our data in candidate looks like this: {}".format(data))
-                #payload = data['candidate']# data looks like: {"type": "candidate", "candidate": "candidate:1 1 UDP 2013266431 fe80::b8c2:dcff:feeb:9d7a 53950 typ host", "sdpMLineIndex": 0, "sentTo": "2078", "name": 432}
-                print("this is what we are sending in candidate: {}".format(payload))
-                if conn is not None:
-                    #setting that UserA connected with UserB
+async def cleanup_room(uid, room_id):
+    room_peers = rooms[room_id]
+    if uid not in room_peers:
+        return
+    room_peers.remove(uid)
+    for pid in room_peers:
+        wsp, paddr, _ = peers[pid]
+        msg = 'ROOM_PEER_LEFT {}'.format(uid)
+        print('room {}: {} -> {}: {}'.format(room_id, uid, pid, msg))
+        await wsp.send(msg)
 
-                    await sendTo(conn, data)
-                print("candidate ice From: {}, candidate ice To: {}".format(data['name'], users[data['name']]['sentTo']))
+async def remove_peer(uid):
+    await cleanup_session(uid)
+    if uid in peers:
+        ws, raddr, status = peers[uid]
+        if status and status != 'session':
+            await cleanup_room(uid, status)
+        del peers[uid]
+        await ws.close()
+        print("Disconnected from peer {!r} at {!r}".format(uid, raddr))
 
-            elif data['type'] == "candidate":
-                print("Disconnecting: {}".format(users[data['name']]['sentTo']))
-                sendingTo = users[data['name']]['sentTo']#Who am I sending data to
-                conn = users[sendingTo]['websocket']
-                if conn is not None:
-                    #setting that UserA connected with UserB
-                    await sendTo(conn, {"type": "leave"})
-            elif data['type'] == "ping":
-                print(data["msg"])
+############### Handler functions ###############
+
+async def connection_handler(ws, uid):
+    global peers, sessions, rooms
+    raddr = ws.remote_address
+    peer_status = None
+    peers[uid] = [ws, raddr, peer_status]
+    print("Registered peer {!r} at {!r}".format(uid, raddr))
+    while True:
+        # Receive command, wait forever if necessary
+        msg = await recv_msg_ping(ws, raddr)
+        # Update current status
+        peer_status = peers[uid][2]
+        # We are in a session or a room, messages must be relayed
+        if peer_status is not None:
+            # We're in a session, route message to connected peer
+            if peer_status == 'session':
+                other_id = sessions[uid]
+                wso, oaddr, status = peers[other_id]
+                assert(status == 'session')
+                print("{} -> {}: {}".format(uid, other_id, msg))
+                await wso.send(msg)
+            # We're in a room, accept room-specific commands
+            elif peer_status:
+                # ROOM_PEER_MSG peer_id MSG
+                if msg.startswith('ROOM_PEER_MSG'):
+                    _, other_id, msg = msg.split(maxsplit=2)
+                    if other_id not in peers:
+                        await ws.send('ERROR peer {!r} not found'
+                                      ''.format(other_id))
+                        continue
+                    wso, oaddr, status = peers[other_id]
+                    if status != room_id:
+                        await ws.send('ERROR peer {!r} is not in the room'
+                                      ''.format(other_id))
+                        continue
+                    msg = 'ROOM_PEER_MSG {} {}'.format(uid, msg)
+                    print('room {}: {} -> {}: {}'.format(room_id, uid, other_id, msg))
+                    await wso.send(msg)
+                elif msg == 'ROOM_PEER_LIST':
+                    room_id = peers[peer_id][2]
+                    room_peers = ' '.join([pid for pid in rooms[room_id] if pid != peer_id])
+                    msg = 'ROOM_PEER_LIST {}'.format(room_peers)
+                    print('room {}: -> {}: {}'.format(room_id, uid, msg))
+                    await ws.send(msg)
+                else:
+                    await ws.send('ERROR invalid msg, already in room')
+                    continue
             else:
-                print("Got wrong format: {}".format(data))
-                type(data)
-        except:
-            print("Got another Message : {}".format(message))
-            print(name)
+                raise AssertionError('Unknown peer status {!r}'.format(peer_status))
+        # Requested a session with a specific peer
+        elif msg.startswith('SESSION'):
+            print("{!r} command {!r}".format(uid, msg))
+            _, callee_id = msg.split(maxsplit=1)
+            #print("Here are our peers: {}".format(peers))
+            if callee_id not in peers:
+                await ws.send('ERROR peer {!r} not found'.format(callee_id))
+                continue
+            if peer_status is not None:
+                await ws.send('ERROR peer {!r} busy'.format(callee_id))
+                continue
+            await ws.send('SESSION_OK')
+            wsc = peers[callee_id][0]
+            print('Session from {!r} ({!r}) to {!r} ({!r})'
+                  ''.format(uid, raddr, callee_id, wsc.remote_address))
+            # Register session
+            peers[uid][2] = peer_status = 'session'
+            sessions[uid] = callee_id
+            peers[callee_id][2] = 'session'
+            sessions[callee_id] = uid
+        # Requested joining or creation of a room
+        elif msg.startswith('ROOM'):
+            print('{!r} command {!r}'.format(uid, msg))
+            _, room_id = msg.split(maxsplit=1)
+            # Room name cannot be 'session', empty, or contain whitespace
+            if room_id == 'session' or room_id.split() != [room_id]:
+                await ws.send('ERROR invalid room id {!r}'.format(room_id))
+                continue
+            if room_id in rooms:
+                if uid in rooms[room_id]:
+                    raise AssertionError('How did we accept a ROOM command '
+                                         'despite already being in a room?')
+            else:
+                # Create room if required
+                rooms[room_id] = set()
+            room_peers = ' '.join([pid for pid in rooms[room_id]])
+            await ws.send('ROOM_OK {}'.format(room_peers))
+            # Enter room
+            peers[uid][2] = peer_status = room_id
+            rooms[room_id].add(uid)
+            for pid in rooms[room_id]:
+                if pid == uid:
+                    continue
+                wsp, paddr, _ = peers[pid]
+                msg = 'ROOM_PEER_JOINED {}'.format(uid)
+                print('room {}: {} -> {}: {}'.format(room_id, uid, pid, msg))
+                await wsp.send(msg)
+        else:
+            print('Ignoring unknown message {!r} from {!r}'.format(msg, uid))
 
+async def hello_peer(ws):
+    '''
+    Exchange hello, register peer
+    '''
+    raddr = ws.remote_address
+    hello = await ws.recv()
+    hello, uid = hello.split(maxsplit=1)
+    if hello != 'HELLO':
+        await ws.close(code=1002, reason='invalid protocol')
+        raise Exception("Invalid hello from {!r}".format(raddr))
+    if not uid or uid in peers or uid.split() != [uid]: # no whitespace
+        await ws.close(code=1002, reason='invalid peer uid')
+        raise Exception("Invalid uid {!r} from {!r}".format(uid, raddr))
+    # Send back a HELLO
+    await ws.send('HELLO')
+    return uid
 
-        #closing the socket is handled?
-        #await websocket.send(json.dumps({"msg": "Hello_World!!!!"}))
-if __name__ == "__main__":
-    print("Starting Server")
-    #path.abspath("/opt/cert")
-    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ssl_context.load_cert_chain(
-    pathlib.Path("/opt/cert/nginx-selfsigned.crt").with_name('nginx-selfsigned.crt'), pathlib.Path("/opt/cert/nginx-selfsigned.key").with_name('nginx-selfsigned.key'))
+async def handler(ws, path):
+    '''
+    All incoming messages are handled here. @path is unused.
+    '''
+    raddr = ws.remote_address
+    print("Connected to {!r}".format(raddr))
+    peer_id = await hello_peer(ws)
+    print("Here is our peer_id: {}".format(peer_id))
+    try:
+        await connection_handler(ws, peer_id)
+    except websockets.ConnectionClosed:
+        print("Connection to peer {!r} closed, exiting handler".format(raddr))
+    finally:
+        await remove_peer(peer_id)
 
-    asyncio.get_event_loop().run_until_complete(
-	websockets.serve(signaling, '127.0.0.1', 8765, ssl=ssl_context, max_queue=16))
-        #websockets.serve(signaling, '192.168.11.148', 8765, ssl=ssl_context, max_queue=16))
-    asyncio.get_event_loop().run_forever()
-    print('ended')
-    users = {}
+sslctx = None
+if not options.disable_ssl:
+    # Create an SSL context to be used by the websocket server
+    certpath = options.cert_path
+    print('Using TLS with keys in {!r}'.format(certpath))
+    if 'letsencrypt' in certpath:
+        chain_pem = os.path.join(certpath, 'fullchain.pem')
+        key_pem = os.path.join(certpath, 'privkey.pem')
+    else:
+        chain_pem = os.path.join(certpath, 'nginx-selfsigned.crt')
+        key_pem = os.path.join(certpath, 'nginx-selfsigned.key')
+
+    sslctx = ssl.create_default_context()
+    try:
+        sslctx.load_cert_chain(chain_pem, keyfile=key_pem)
+    except FileNotFoundError:
+        print("Certificates not found, did you run generate_cert.sh?")
+        sys.exit(1)
+    # FIXME
+    sslctx.check_hostname = False
+    sslctx.verify_mode = ssl.CERT_NONE
+
+print("Listening on https://{}:{}".format(*ADDR_PORT))
+# Websocket server
+wsd = websockets.serve(handler, *ADDR_PORT, ssl=sslctx, process_request=health_check,
+                       # Maximum number of messages that websockets will pop
+                       # off the asyncio and OS buffers per connection. See:
+                       # https://websockets.readthedocs.io/en/stable/api.html#websockets.protocol.WebSocketCommonProtocol
+                       max_queue=16)
+
+logger = logging.getLogger('websockets.server')
+
+logger.setLevel(logging.ERROR)
+logger.addHandler(logging.StreamHandler())
+
+asyncio.get_event_loop().run_until_complete(wsd)
+asyncio.get_event_loop().run_forever()

@@ -1,12 +1,14 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, redirect, url_for
 import ssl
 import os
 import multiprocessing
 import sys
+import time
 sys.path.append('../cameras/')
 from webrtc_sendrecv import *
 app = Flask(__name__)
-
+global config
+config_loc = 'config.json'
 # for CORS
 @app.after_request
 def after_request(response):
@@ -19,6 +21,12 @@ def index():
     #return app.send_static_file('index.html')
     return render_template('index.html')
 
+#This gives the server the browsers peer_id so we can properly launch webrtcbin
+@app.route('/get_browser_id', methods=['POST'])
+def get_browser_id():
+    b_id = request.json['browser_id']
+    launch_cameras(b_id)#launch our camera clients
+    return jsonify(success=True)
 
 @app.route('/data')
 def names():
@@ -35,16 +43,31 @@ def run_signaling_server():
     #terminate_process()
     #p = multiprocessing.Process()
     print('running signaling server!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    os.system('python3 signaling_server.py')
+    os.system('python3 signaling_server.py --addr 127.0.0.1 --port 8765 --cert-path /opt/cert/')
     #exec(open("./signaling_server.py").read())
 
-def run_client_local(server, ip, port):#usually the camera server
+def launch_cameras(browser_id = ""):
+    assert (os.path.exists(config_loc)),"Config does not exist, make sure it does!"
+    config = open_config(config_loc)
+    cameras = config['cameras']
+    wsserver = config['wsserver']
+    time.sleep(1)
+    for i in cameras:#2 cameras
+        camera = i.split(':')
+        print(camera)
+        p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], camera[1], browser_id))
+        p.start()
+        time.sleep(1)
+
+def run_client_local(server, ip, port, browser_id):#usually the camera server
     Gst.init(None)
     if not check_plugins():
         sys.exit(1)
     our_id = random.randrange(10, 10000)
-    peerid = 1
-    print(our_id)
+    print("OUR ID: {}!!!!!!!!!!!!!!!!!!!!!!".format(our_id))
+    peerid = browser_id
+    print(server)
+    print(peerid)
     c = WebRTCClient(our_id, peerid, server, ip, port)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -54,38 +77,44 @@ def run_client_local(server, ip, port):#usually the camera server
 
 @app.route('/get_req_for_cam', methods=['GET','POST'])
 def get_req_for_cam():
+    global config
     print("POST FROM SERVER ASKING US FOR CAMERA")
-    server = request.json['server']
-    print(server)
-    #here we request the camera from another server running this software
-    #store ip addresses and loop over this changing the server each time, we need to insert this to PIPELINE_DESC
-
-    p = multiprocessing.Process(target=run_client_local, args=(server, ))
-    p.start()
-    #run_client_local(server)
+    camera = request.json['camera']
+    wsserver = request.json['wsserver']#gives us our websocket server so our client can connect, will prob be changed later
+    if camera not in config['cameras']:
+        config['cameras'].append(camera)#change naming convention
+        save_config(config_loc)
+        ip_port = camera.split(':')
+        p = multiprocessing.Process(target=run_client_local, args=(wsserver, ip_port[0], ip_port[1]))
+        p.start()
+        time.sleep(1)
+        resp = jsonify(success=True, wasCameraAdded=1)#camera was added
+        return resp
+        #return redirect(url_for('index'), code=302)
+    resp = jsonify(success=False, wasCameraAdded=0, reason="Camera was not added, because already in database")#camera was added
+    return resp
 
 import json
 def open_config(location):
     with open(location) as json_file:
-        config = json.load(json_file)
-        return config
+        return json.load(json_file)
+
+def save_config(location):
+    global config
+    with open(location, 'w') as outfile:
+        json.dump(config, outfile)
+        print("saved config")
 
 if __name__ == '__main__':
+    global config
+    config = open_config('config.json')
+    #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
-    import time
-    time.sleep(1)
-    config = open_config('config.json')
-    cameras = config['cameras']
-    wsserver = config['wsserver']
-    for i in cameras:#2 cameras
-        camera = i.split(':')
-        print(camera)
-        p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], camera[1]))
-        p.start()
     print('server pid: {}'.format(p.pid))
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")
     #context = ('/opt/cert/nginx-selfsigned.crt', '/opt/cert/nginx-selfsigned.key')#certificate and key files
+    #app.run(host='192.168.11.148', debug=True, ssl_context=context, use_reloader=False, port=443)
+    #app.run(host='192.168.11.148', debug=True, ssl_context=context, use_reloader=False)
     app.run(host='127.0.0.1', debug=True, ssl_context=context, use_reloader=False)
-    #app.run(host='127.0.0.1', debug=True, ssl_context=context)

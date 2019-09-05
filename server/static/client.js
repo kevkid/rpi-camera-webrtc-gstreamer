@@ -15,24 +15,44 @@ var yourConn;
 var stream;
 var connections = {}
 var configuration;
-
+var name
 function getOurId() {
     return Math.floor(Math.random() * (9000 - 10) + 10).toString();
 }
 
 //on page load
 document.addEventListener('DOMContentLoaded', function () {
+  /*When the page loads, we get a name and we send this to the
+  *http server. The http server will launch a client with this id
+  */
+  name = getOurId()
+  server_addr = 'https://127.0.0.1:5000/get_browser_id'//This has to be fixed
+  data = {'browser_id': name};//servers address
 
-});
+  $.ajax({
+     type: "POST",
+     url: server_addr,
+     data: JSON.stringify(data, null, '\t'),
+     contentType: 'application/json;charset=UTF-8',
+     success: null,
+   }).done(function(response) {
+     if (response['success'] == 1){
+       console.log("Successfully send browsers id to http server");
+       console.log(`Browser ID: ${name}`);
+     }
+     else{
+       console.log("We are not supposed to get here");
+     }
+   }).fail(function (response){
+     console.log('failure of some sort');
+   });
+ });
 
 function logIn(){
-  name = getOurId();//Generate a random id for the browser
+  //name = getOurId();//Generate a random id for the browser
   ourIDSpan.innerHTML = name;
   if(name.length > 0){
-     send({
-        type: "login",
-        payload: {location: "browser"}
-     });
+       connection.send('HELLO ' + name.toString());
   }
 }
 
@@ -40,7 +60,12 @@ function logIn(){
 //handle messages from the server
 connection.onmessage = function (message) {
    console.log("Got message", message.data);
-   var data = JSON.parse(message.data);
+   if (message.data === "HELLO"){
+     var data = message.data;
+   }
+   else{
+     var data = JSON.parse(message.data);
+   }
 
    switch(data.type) {
       case "login":
@@ -55,9 +80,19 @@ connection.onmessage = function (message) {
       case "candidate":
          handleCandidate(data);
          break;
+      case "ice":
+         console.log("IN ICE");
+         handleCandidate(data);
+         break;
+      case "sdp"://Here we handle our offer from the client.
+         console.log("IN SDP");
+         handleOffer(data);
+         break;
       case "userLoggedIn":
-         handleUserLoggedIn(data.names)
+         handleUserLoggedIn(data.names);
       default:
+         console.log("GOT INTO DEFAULT CASE")
+         console.log(data)
          break;
    }
 };
@@ -215,12 +250,12 @@ connectToOtherUsernameBtn.addEventListener("click", function () {
 //when somebody sends us an offer
 //when somebody sends us an offer we always set that offer given to us as our remote description
 function handleOffer(data) {
-   connectedUser = data.name;
+   connectedUser = data.sdp.name;
    addConnection(connectedUser)
    console.log("RTCPeerConnection object was created");
    console.log(connections[connectedUser]);
-   console.log("this is the offer: ",data.payload);
-   connections[connectedUser].setRemoteDescription(new RTCSessionDescription(data.payload));
+   console.log("this is the offer: ",data.sdp);
+   connections[connectedUser].setRemoteDescription(new RTCSessionDescription(data.sdp));
 
    //create an answer to an offer
    //When we create our answer to an offer we always set it to our local description
@@ -228,9 +263,9 @@ function handleOffer(data) {
       connections[connectedUser].setLocalDescription(answer);
 
       send({
+         sdp: answer,
          type: "answer",
          sentTo: connectedUser,
-         payload: answer
       });
 
    }, function (error) {
@@ -249,7 +284,7 @@ function handleAnswer(answer, from) {//Have to figure out where the answer is co
 //when we got an ice candidate from a remote user
 //Not exactly sure when we set our ice candidate
 function handleCandidate(data) {
-    candidate = {type:"candidate", candidate:data.candidate, sdpMLineIndex: data.sdpMLineIndex};
+    candidate = {type:"candidate", candidate:data.ice.candidate, sdpMLineIndex: data.ice.sdpMLineIndex};
     console.log("this is the candidate: ",data);
     connections[data.name].addIceCandidate(new RTCIceCandidate(candidate));
 };
@@ -267,8 +302,8 @@ var desktopConstraints = {
 
    video: {
       mandatory: {
-         maxWidth:800,
-         maxHeight:600
+         maxWidth:1920,
+         maxHeight:1080
       }
    },
 
@@ -332,12 +367,12 @@ function addConnection(name){
   connection.onicecandidate = function (event) {
 
      if (event.candidate) {
-        send({type:"candidate",
+        send({ice:{type:"candidate",
               candidate: event.candidate.candidate,
-              sdpMLineIndex: event.candidate.sdpMLineIndex});
-        console.log("This is what our event looks like", {type:"candidate",
+              sdpMLineIndex: event.candidate.sdpMLineIndex}});
+        console.log("This is what our event looks like", {ice:{type:"candidate",
               candidate: event.candidate.candidate,
-              sdpMLineIndex: event.candidate.sdpMLineIndex});
+              sdpMLineIndex: event.candidate.sdpMLineIndex}});
      }
   };
   //Add a connection dynamically
