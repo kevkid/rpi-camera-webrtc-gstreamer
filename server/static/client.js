@@ -52,7 +52,7 @@ function logIn(){
   //name = getOurId();//Generate a random id for the browser
   ourIDSpan.innerHTML = name;
   if(name.length > 0){
-       connection.send('HELLO ' + name.toString());
+       connection.send('HELLO ' + name.toString() + ' 1');
   }
 }
 
@@ -60,11 +60,15 @@ function logIn(){
 //handle messages from the server
 connection.onmessage = function (message) {
    console.log("Got message", message.data);
+   var data = {};
    if (message.data === "HELLO"){
-     var data = message.data;
+     data.type = message.data;
+   }
+   else if (message.data === "SESSION_OK") {
+     data.type = message.data;
    }
    else{
-     var data = JSON.parse(message.data);
+     data = JSON.parse(message.data);
    }
 
    switch(data.type) {
@@ -90,6 +94,10 @@ connection.onmessage = function (message) {
          break;
       case "userLoggedIn":
          handleUserLoggedIn(data.names);
+         break;
+      case "HELLO":
+         handleHello(data);
+         break;
       default:
          console.log("GOT INTO DEFAULT CASE")
          console.log(data)
@@ -297,6 +305,10 @@ function handleUserLoggedIn(names){
     }
 }
 
+function handleHello(){
+  console.log("Got Hello, registering with server");
+  //connection.send("SESSION " + name.toString());
+}
 //constraints for desktop browser
 var desktopConstraints = {
 
@@ -351,7 +363,6 @@ function addConnection(name){
      videoElement.srcObject = e.stream;
   };
   var playPromise = videoElement.play();
-
   if (playPromise !== undefined) {
     playPromise.then(_ => {
       // Automatic playback started!
@@ -373,6 +384,13 @@ function addConnection(name){
         console.log("This is what our event looks like", {ice:{type:"candidate",
               candidate: event.candidate.candidate,
               sdpMLineIndex: event.candidate.sdpMLineIndex}});
+     }
+     if (connections[name].connectionState == "connected"){
+       console.log("Connection state is CONNECTED")
+     }
+     else{
+       //console.log(connections[name].connectionState);
+       console.log(event);
      }
   };
   //Add a connection dynamically

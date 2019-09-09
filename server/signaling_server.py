@@ -92,7 +92,7 @@ async def cleanup_session(uid):
             # close the connection to reset its state.
             if other_id in peers:
                 print("Closing connection to {}".format(other_id))
-                wso, oaddr, _ = peers[other_id]
+                wso, oaddr, _, __ = peers[other_id]
                 del peers[other_id]
                 await wso.close()
 
@@ -110,7 +110,7 @@ async def cleanup_room(uid, room_id):
 async def remove_peer(uid):
     await cleanup_session(uid)
     if uid in peers:
-        ws, raddr, status = peers[uid]
+        ws, raddr, status, isBrowser = peers[uid]
         if status and status != 'session':
             await cleanup_room(uid, status)
         del peers[uid]
@@ -118,27 +118,44 @@ async def remove_peer(uid):
         print("Disconnected from peer {!r} at {!r}".format(uid, raddr))
 
 ############### Handler functions ###############
-
-async def connection_handler(ws, uid):
+#Cant do more than 1 video at same time due to the signaling server assigning
+#our browser a peer, so what happens is that our browser gets a peer first
+#then if it has not finished it will try to send the information of peer A to peer b
+async def connection_handler(ws, uid, isBrowser):
     global peers, sessions, rooms
     raddr = ws.remote_address
     peer_status = None
-    peers[uid] = [ws, raddr, peer_status]
+    peers[uid] = [ws, raddr, peer_status, isBrowser]
     print("Registered peer {!r} at {!r}".format(uid, raddr))
     while True:
         # Receive command, wait forever if necessary
         msg = await recv_msg_ping(ws, raddr)
         # Update current status
         peer_status = peers[uid][2]
+        #print("HERE IS 'ISBROWSER: {}!!@@@@@@@@@@@@@@@@!!!!!!'".format(peers[uid][3]))
+        #print("HERE IS THE PEER STATUS: {}".format(peer_status))
+        print("Here are our peers {} for {}".format(peers[uid], uid))
+        print(msg)
         # We are in a session or a room, messages must be relayed
         if peer_status is not None:
+            print("THESE ARE OUR SESSIONS {} FOR PEER {}".format(sessions[uid], uid))
             # We're in a session, route message to connected peer
             if peer_status == 'session':
-                other_id = sessions[uid]
-                wso, oaddr, status = peers[other_id]
-                assert(status == 'session')
-                print("{} -> {}: {}".format(uid, other_id, msg))
-                await wso.send(msg)
+                if peers[uid][3] == 1:#is browser
+                    print("WE ARE IN THE BROWSER!!!!!!!!!!!!!!!!!!!!!!!!####")
+                    for other_id in sessions[uid]:
+                        print("IN SESSION HERE IS OTHER_ID: {}".format(type(sessions[uid])))
+                        wso, oaddr, status, isBrowser = peers[other_id]
+                        assert(status == 'session')
+                        print("{} -> {}: {}".format(uid, other_id, msg))
+                        await wso.send(msg)
+                else:
+                    other_id = sessions[uid]
+                    print("WE ARE IN THE CLIENT!!!!!!!!!!!!!!!!!!!!!!!!####")
+                    wso, oaddr, status, isBrowser = peers[other_id]
+                    assert(status == 'session')
+                    print("{} -> {}: {}".format(uid, other_id, msg))
+                    await wso.send(msg)
             # We're in a room, accept room-specific commands
             elif peer_status:
                 # ROOM_PEER_MSG peer_id MSG
@@ -148,7 +165,7 @@ async def connection_handler(ws, uid):
                         await ws.send('ERROR peer {!r} not found'
                                       ''.format(other_id))
                         continue
-                    wso, oaddr, status = peers[other_id]
+                    wso, oaddr, status, isBrowser = peers[other_id]
                     if status != room_id:
                         await ws.send('ERROR peer {!r} is not in the room'
                                       ''.format(other_id))
@@ -182,11 +199,18 @@ async def connection_handler(ws, uid):
             wsc = peers[callee_id][0]
             print('Session from {!r} ({!r}) to {!r} ({!r})'
                   ''.format(uid, raddr, callee_id, wsc.remote_address))
+            print('AM I A BROWSER: {}????!!!???!'.format(peers[uid][3]))
             # Register session
-            peers[uid][2] = peer_status = 'session'
-            sessions[uid] = callee_id
-            peers[callee_id][2] = 'session'
-            sessions[callee_id] = uid
+            if peers[uid][3] == 0 and peers[callee_id][3] == 1:#its a camera
+                peers[uid][2] = peer_status = 'session'
+                sessions[uid] = callee_id
+                peers[callee_id][2] = 'session'
+                if callee_id not in sessions:
+                    sessions[callee_id] = []
+                    print("CREATED LIST FOR BROWSERS SESSIONS (multiple cameras)")
+                sessions[callee_id].append(uid)
+                print("here is the browsers id: {}, and its peers: {}".format(callee_id, sessions[callee_id]))
+
         # Requested joining or creation of a room
         elif msg.startswith('ROOM'):
             print('{!r} command {!r}'.format(uid, msg))
@@ -223,7 +247,7 @@ async def hello_peer(ws):
     '''
     raddr = ws.remote_address
     hello = await ws.recv()
-    hello, uid = hello.split(maxsplit=1)
+    hello, uid, isBrowser = hello.split(maxsplit=2)#need to chech if its a browser
     if hello != 'HELLO':
         await ws.close(code=1002, reason='invalid protocol')
         raise Exception("Invalid hello from {!r}".format(raddr))
@@ -232,7 +256,7 @@ async def hello_peer(ws):
         raise Exception("Invalid uid {!r} from {!r}".format(uid, raddr))
     # Send back a HELLO
     await ws.send('HELLO')
-    return uid
+    return uid, isBrowser
 
 async def handler(ws, path):
     '''
@@ -240,10 +264,9 @@ async def handler(ws, path):
     '''
     raddr = ws.remote_address
     print("Connected to {!r}".format(raddr))
-    peer_id = await hello_peer(ws)
-    print("Here is our peer_id: {}".format(peer_id))
+    peer_id, isBrowser = await hello_peer(ws)
     try:
-        await connection_handler(ws, peer_id)
+        await connection_handler(ws, peer_id, int(isBrowser))
     except websockets.ConnectionClosed:
         print("Connection to peer {!r} closed, exiting handler".format(raddr))
     finally:

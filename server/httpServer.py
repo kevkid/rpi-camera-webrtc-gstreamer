@@ -57,7 +57,7 @@ def launch_cameras(browser_id = ""):
         print(camera)
         p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], camera[1], browser_id))
         p.start()
-        time.sleep(1)
+        #time.sleep(3)
 
 def run_client_local(server, ip, port, browser_id):#usually the camera server
     Gst.init(None)
@@ -74,6 +74,7 @@ def run_client_local(server, ip, port, browser_id):#usually the camera server
     asyncio.get_event_loop().run_until_complete(c.connect())
     res = asyncio.get_event_loop().run_until_complete(c.loop())
     sys.exit(res)
+    return 0
 
 @app.route('/get_req_for_cam', methods=['GET','POST'])
 def get_req_for_cam():

@@ -32,7 +32,7 @@ class WebRTCClient:
         self.conn = None
         self.pipe = None
         self.webrtc = None
-        self.peer_id = peer_id
+        self.peer_id = peer_id#our browser
         self.server = server or 'wss://webrtc.nirbheek.in:8443'
         self.ip = ip
         self.port = port
@@ -40,7 +40,7 @@ class WebRTCClient:
     async def connect(self):
         sslctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
         self.conn = await websockets.connect(self.server, ssl=sslctx)
-        await self.conn.send('HELLO %d' % self.id_)
+        await self.conn.send('HELLO %d %d' % (self.id_, 0))#it is not a browser
 
     async def setup_call(self):
         await self.conn.send('SESSION {}'.format(self.peer_id))
