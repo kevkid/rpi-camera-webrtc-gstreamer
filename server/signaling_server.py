@@ -82,19 +82,20 @@ async def disconnect(ws, peer_id):
 
 async def cleanup_session(uid):
     if uid in sessions:
-        other_id = sessions[uid]
+        other_ids = sessions[uid]
         del sessions[uid]
         print("Cleaned up {} session".format(uid))
-        if other_id in sessions:
-            del sessions[other_id]
-            print("Also cleaned up {} session".format(other_id))
-            # If there was a session with this peer, also
-            # close the connection to reset its state.
-            if other_id in peers:
-                print("Closing connection to {}".format(other_id))
-                wso, oaddr, _, __ = peers[other_id]
-                del peers[other_id]
-                await wso.close()
+        for other_id in other_ids:
+            if other_id in sessions:#cleanup doesnt happen as its a list...
+                del sessions[other_id]
+                print("Also cleaned up {} session".format(other_id))
+                # If there was a session with this peer, also
+                # close the connection to reset its state.
+                if other_id in peers:
+                    print("Closing connection to {}".format(other_id))
+                    wso, oaddr, _, __ = peers[other_id]
+                    del peers[other_id]
+                    await wso.close()
 
 async def cleanup_room(uid, room_id):
     room_peers = rooms[room_id]

@@ -351,6 +351,7 @@ function addConnection(name){
   videoElement.setAttribute("id", vidName);
   videoElement.setAttribute("controls", true);
   videoElement.setAttribute("autoplay", true);
+  videoElement.setAttribute("muted", true);
   callPage.appendChild(videoElement);
 
   var connection = new RTCPeerConnection(configuration);
