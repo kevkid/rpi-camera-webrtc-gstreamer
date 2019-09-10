@@ -348,13 +348,19 @@ var cameraCounter = 0;
 function addConnection(name){
   //create our element
   videoElement = document.createElement("video");
-  var vidName = "video"+name;
+  var vidName = "video_"+name;
   videoElement.setAttribute("id", vidName);
   videoElement.setAttribute("controls", true);
   videoElement.setAttribute("autoplay", true);
   videoElement.setAttribute("muted", true);
-  var col = $("<div class='col'>")
-  col.append(videoElement)
+  var col = $("<div class='col'>");
+  var video_div = $("<div class='vid'>");
+  var video_title_div = $("<div>");
+
+  video_title_div.text(vidName);
+  video_div.append(videoElement);
+  video_div.append(video_title_div);
+  col.append(video_div);
   var row_div;
   if (cameraCounter == 0){
     row_div = $("<div id='row_div' class='row'>");
