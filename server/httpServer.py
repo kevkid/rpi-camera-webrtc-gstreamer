@@ -19,7 +19,7 @@ def after_request(response):
 @app.route('/')
 def index():
     #return app.send_static_file('index.html')
-    return render_template('index.html')
+    return render_template('index.html', httpsserver=httpsserver, wsserver=wsserver)
 
 #This gives the server the browsers peer_id so we can properly launch webrtcbin
 @app.route('/get_browser_id', methods=['POST'])
@@ -43,7 +43,7 @@ def run_signaling_server():
     #terminate_process()
     #p = multiprocessing.Process()
     print('running signaling server!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    os.system('python3 signaling_server.py --addr 127.0.0.1 --port 8765 --cert-path /opt/cert/')
+    os.system('python3 signaling_server.py --addr '+wss_addr[0]+' --port '+wss_addr[1]+' --cert-path /opt/cert/')
     #exec(open("./signaling_server.py").read())
 
 def launch_cameras(browser_id = ""):
@@ -109,6 +109,11 @@ def save_config(location):
 if __name__ == '__main__':
     global config
     config = open_config('config.json')
+    http_addr = config['httpsserver'].split(':')
+    wss_addr = config['wsserver'].replace('wss://','').split(':')
+    httpsserver = config['httpsserver']
+    wsserver = config['wsserver']
+    certpath = config['certpath']
     #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
@@ -116,6 +121,6 @@ if __name__ == '__main__':
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")
     #context = ('/opt/cert/nginx-selfsigned.crt', '/opt/cert/nginx-selfsigned.key')#certificate and key files
-    #app.run(host='192.168.11.148', debug=True, ssl_context=context, use_reloader=False, port=443)
+    app.run(host=http_addr[0], debug=True, ssl_context=context, use_reloader=False, port=http_addr[1])
     #app.run(host='192.168.11.148', debug=True, ssl_context=context, use_reloader=False)
-    app.run(host='127.0.0.1', debug=True, ssl_context=context, use_reloader=False)
+    #app.run(host='127.0.0.1', debug=True, ssl_context=context, use_reloader=False)

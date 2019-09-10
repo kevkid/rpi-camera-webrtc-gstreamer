@@ -4,14 +4,16 @@
       <title>WebRTC Video Demo</title>
       <!--<link rel = "stylesheet" href = "node_modules/bootstrap/dist/css/bootstrap.min.css"/>-->
       <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
-
+      <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+      <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
    </head>
 
    <style>
 
       body {
-         background: #eee;
-         padding: 5% 0;
+         background: #f8f9fa;
+         padding: 1%;
       }
 
       video {
@@ -21,39 +23,58 @@
 
 
       Video {
-         height: 400px;
+         height: 300px;
 
+      }
+      .row{
+        padding: 5px;
+      }
+      .col{
+        padding: 5px;
       }
    </style>
 
    <body>
-
-
-      <div >
-
-         <input type = "text" id = "otherUsernameInput" value="127.0.0.1:5000"/>
-         <button id = "connectToOtherUsernameBtn">Add Camera</button>
-      </div>
-		<div>
-        Our id: <span id="ourID"></span>
-    </div>
+     <div class="modal fade" id="addCameraModal" tabindex="-1" role="dialog">
+       <div class="modal-dialog" role="document">
+         <div class="modal-content">
+           <div class="modal-header">
+             <h5 class="modal-title">Add Cameras</h5>
+             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+               <span aria-hidden="true">&times;</span>
+             </button>
+           </div>
+           <div class="modal-body">
+             <input class="form-control" type="text" placeholder="Camera server <ipaddr:port>" id = "otherUsernameInput" value=""/>
+           </div>
+           <div class="modal-footer">
+             <button type="button" class="btn btn-danger" id="connectToOtherUsernameBtn">Add Camera</button>
+             <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+           </div>
+         </div>
+       </div>
+     </div>
    </div>
-   <h3>Camera Panel</h3>
-   <div id = "callPage" class = "call-page">
-
+   <div id = "callPage" class = "call-page container" style="max-width:95%">
+     <h3>Camera Panel</h3>
+     Our id: <span id="ourID"></span>
    </div>
-
+   <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#addCameraModal">
+     Add Cameras
+   </button>
    <!--<script src = "client.js"></script>-->
-   <script type="text/javascript" src="{{ url_for('static', filename='client.js') }}"></script>
    <script>
+   //var httpsserver = '{{ request.host.split(':')[0] }}'
+   var httpsserver = '{{ httpsserver }}'
+   var wsserver = '{{ wsserver }}'
    $( "#connectToOtherUsernameBtn" ).click(function() {
      //I think what should happen is to enter the ip address of the camera, then store that ip, then we can use the ip start a new pipeline,
      //after the pipeline will launch a webrtc client when the browser enters the page?
      //we store all of the ip addresses so we can make the "call" by initiating a new webrtc client.
 
      var camera_addr = $("#otherUsernameInput").val();
-     server_addr = 'https://127.0.0.1:5000/get_req_for_cam'
-     data = {'camera' : camera_addr, 'wsserver':'wss://127.0.0.1:8765'};//servers address
+     server_addr = 'https://'+httpsserver+'/get_req_for_cam'
+     data = {'camera' : camera_addr, 'wsserver':wsserver};//servers address
      $.ajax({
         type: "POST",
         url: server_addr,
@@ -74,6 +95,7 @@
     });
 
    </script>
+   <script type="text/javascript" src="{{ url_for('static', filename='client.js') }}"></script>
    </body>
 
 </html>

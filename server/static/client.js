@@ -1,5 +1,5 @@
 //var connection = new WebSocket('wss://192.168.11.148:8765');
-var connection = new WebSocket('wss://127.0.0.1:8765');
+var connection = new WebSocket(wsserver);
 var name = "";
 
 
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', function () {
   *http server. The http server will launch a client with this id
   */
   name = getOurId()
-  server_addr = 'https://127.0.0.1:5000/get_browser_id'//This has to be fixed
+  server_addr = 'https://'+httpsserver+'/get_browser_id'//This has to be fixed
   data = {'browser_id': name};//servers address
 
   $.ajax({
@@ -344,6 +344,7 @@ if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
 
 
 //on connection added
+var cameraCounter = 0;
 function addConnection(name){
   //create our element
   videoElement = document.createElement("video");
@@ -352,7 +353,20 @@ function addConnection(name){
   videoElement.setAttribute("controls", true);
   videoElement.setAttribute("autoplay", true);
   videoElement.setAttribute("muted", true);
-  callPage.appendChild(videoElement);
+  var col = $("<div class='col'>")
+  col.append(videoElement)
+  var row_div;
+  if (cameraCounter == 0){
+    row_div = $("<div id='row_div' class='row'>");
+    row_div.append(col);
+    $("#callPage").append(row_div);
+  }
+  else{
+    $("#row_div").append(col);//should be our last row
+  }
+  cameraCounter += 1;
+  //cameraCounter = cameraCounter % 3;//2 for right now
+
 
   var connection = new RTCPeerConnection(configuration);
 
