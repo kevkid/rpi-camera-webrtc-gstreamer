@@ -103,23 +103,31 @@ There may be more details here: https://github.com/centricular/gstwebrtc-demos/i
 Here is how to generate the certs https://www.digitalocean.com/community/tutorials/how-to-create-a-self-signed-ssl-certificate-for-nginx-in-ubuntu-18-04
 
 # How to run server
-python3 signaling_server.py
+`python3 httpserver.py`
 
 # How to run client
-python3 webrtc-sendrecv.py --server "wss://127.0.0.1:8765" 1
+`Follow the bash commands to run in terminal using current pipelines`
 
 # Current pipelines:
 
 #This works for server
-```
+```sh
 gst-launch-1.0 -v videotestsrc ! x264enc speed-preset=ultrafast ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink port=7001
 ```
+#### If you want to get it to work on multiple clients you would want to use tee:
+```sh
+gst-launch-1.0 -v videotestsrc is-live=1 pattern=ball flip=true ! x264enc speed-preset=ultrafast tune=zerolatency ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! tee name=t t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000
+```
+The previous code gives us 5 different udp streams
+
 #This works for client in bash
 
+```sh
 gst-launch-1.0 udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay ! h264parse ! avdec_h264 ! autovideosink
+```
 
 #This works for webrtcclient
-```
+```sh
 PIPELINE_DESC = '''
 	webrtcbin name=sendrecv bundle-policy=max-bundle
         udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay ! 
