@@ -4,6 +4,7 @@ import os
 import multiprocessing
 import sys
 import time
+import raspi_opencv_motion as rom
 sys.path.append('../cameras/')
 from webrtc_sendrecv import *
 app = Flask(__name__)
@@ -95,6 +96,11 @@ def get_req_for_cam():
     resp = jsonify(success=False, wasCameraAdded=0, reason="Camera was not added, because already in database")#camera was added
     return resp
 
+def motion_detection(port):
+    print("in motion detection")
+    cameraMonitor = rom.Monitor(ipAddr='127.0.0.1', port=port, threshold=0.03, timeToRecord=30, bitrate=2048)
+    cameraMonitor.run()
+
 import json
 def open_config(location):
     with open(location) as json_file:
@@ -114,6 +120,12 @@ if __name__ == '__main__':
     httpsserver = config['httpsserver']
     wsserver = config['wsserver']
     certpath = config['certpath']
+    cameras = config['cameras']
+    for i in cameras:#2 cameras
+        camera = i.split(':')
+        print(camera)
+        c = multiprocessing.Process(target=motion_detection, args=(camera[1],))
+        c.start()
     #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
