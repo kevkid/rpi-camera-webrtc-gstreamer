@@ -96,9 +96,9 @@ def get_req_for_cam():
     resp = jsonify(success=False, wasCameraAdded=0, reason="Camera was not added, because already in database")#camera was added
     return resp
 
-def motion_detection(port):
+def motion_detection(ip_port, directory):
     print("in motion detection")
-    cameraMonitor = rom.Monitor(ipAddr='127.0.0.1', port=port, threshold=0.03, timeToRecord=30, bitrate=2048)
+    cameraMonitor = rom.Monitor(ipAddr=ip_port[0], port=ip_port[1],directory=directory, threshold=0.015, timeToRecord=30, bitrate=2048)
     cameraMonitor.run()
 
 import json
@@ -121,15 +121,15 @@ if __name__ == '__main__':
     wsserver = config['wsserver']
     certpath = config['certpath']
     cameras = config['cameras']
-    for i in cameras:#2 cameras
-        camera = i.split(':')
-        print(camera)
-        c = multiprocessing.Process(target=motion_detection, args=(camera[1],))
-        c.start()
     #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
     print('server pid: {}'.format(p.pid))
+    for i in cameras:#2 cameras
+        camera = i.split(':')
+        print(camera)
+        c = multiprocessing.Process(target=motion_detection, args=(camera,camera[0],))
+        c.start()
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")
     #context = ('/opt/cert/nginx-selfsigned.crt', '/opt/cert/nginx-selfsigned.key')#certificate and key files

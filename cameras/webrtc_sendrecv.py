@@ -118,7 +118,7 @@ class WebRTCClient:
         webrtcbin name=sendrecv bundle-policy=max-bundle
         udpsrc port={} caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay !
         h264parse ! queue ! rtph264pay config-interval=-1 !
-        queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
+        queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.'''
         PIPELINE_DESC = PIPELINE_DESC.format(self.port)
         self.pipe = Gst.parse_launch(PIPELINE_DESC)
         self.webrtc = self.pipe.get_by_name('sendrecv')
