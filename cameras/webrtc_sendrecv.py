@@ -48,7 +48,7 @@ class WebRTCClient:
     def send_sdp_offer(self, offer):
         text = offer.sdp.as_text()
         print ('Sending offer:\n%s' % text)
-        msg = json.dumps({'type':'sdp','sdp': {'type': 'offer', 'sdp': text, 'name':self.id_}})
+        msg = json.dumps({'type':'sdp','sdp': {'type': 'offer', 'sdp': text, 'name':self.id_, 'ip':self.ip}})
         loop = asyncio.new_event_loop()
         loop.run_until_complete(self.conn.send(msg))
 

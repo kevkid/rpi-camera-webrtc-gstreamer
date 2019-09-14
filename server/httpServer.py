@@ -29,10 +29,18 @@ def get_browser_id():
     launch_cameras(b_id)#launch our camera clients
     return jsonify(success=True)
 
-@app.route('/data')
-def names():
-    data = {"names": ["John", "Jacob", "Julie", "Jennifer"]}
-    return jsonify(data)
+'''
+TODO: I have to get the server to stop recording the video., somehow kill the process
+'''
+@app.route('/remove_camera', methods=['POST'])
+def remove_camera():
+    camera = request.json['camera']
+    print(camera)
+    res = [i for i in config['cameras'] if camera in i]
+    res = res[0]
+    config['cameras'].remove(res)
+    save_config(config_loc)
+    return jsonify(success=True, wasCameraRemoved=True)
 
 #multiprocessing stuff
 def terminate_process():
@@ -53,7 +61,7 @@ def launch_cameras(browser_id = ""):
     cameras = config['cameras']
     wsserver = config['wsserver']
     time.sleep(1)
-    for i in cameras:#2 cameras
+    for i in cameras:#n cameras
         camera = i.split(':')
         print(camera)
         p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], camera[1], browser_id))
@@ -121,6 +129,7 @@ if __name__ == '__main__':
     wsserver = config['wsserver']
     certpath = config['certpath']
     cameras = config['cameras']
+    video_save_dir = config['video_save_dir']
     #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
@@ -128,7 +137,7 @@ if __name__ == '__main__':
     for i in cameras:#2 cameras
         camera = i.split(':')
         print(camera)
-        c = multiprocessing.Process(target=motion_detection, args=(camera,camera[0],))
+        c = multiprocessing.Process(target=motion_detection, args=(camera,video_save_dir+camera[0],))
         c.start()
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")

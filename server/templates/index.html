@@ -64,6 +64,7 @@
      <h3>Camera Panel</h3>
      Our id: <span id="ourID"></span>
    </div>
+
    <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#addCameraModal">
      Add Cameras
    </button>
@@ -72,13 +73,36 @@
    //var httpsserver = '{{ request.host.split(':')[0] }}'
    var httpsserver = '{{ httpsserver }}'
    var wsserver = '{{ wsserver }}'
+   $("body").on('click','.delete_vid', function (){
+     alert("camera deleted!");
+      server_addr = 'https://'+httpsserver+'/remove_camera';
+      data = {'camera':$(this).val()};
+      $.ajax({
+         type: "POST",
+         url: server_addr,
+         data: JSON.stringify(data, null, '\t'),
+         contentType: 'application/json;charset=UTF-8',
+         success: null,
+       }).done(function(response) {
+         if (response['wasCameraRemoved'] == 1){
+           alert( "Camera removed Successfully" );
+           location.reload();//refresh the page to get some cameras!remove_camera
+         }
+         else{
+           alert(response['reason']);
+         }
+       }).fail(function (response){
+         alert('failure of some sort');
+       });
+
+   });
    $( "#connectToOtherUsernameBtn" ).click(function() {
      //I think what should happen is to enter the ip address of the camera, then store that ip, then we can use the ip start a new pipeline,
      //after the pipeline will launch a webrtc client when the browser enters the page?
      //we store all of the ip addresses so we can make the "call" by initiating a new webrtc client.
 
      var camera_addr = $("#otherUsernameInput").val();
-     server_addr = 'https://'+httpsserver+'/get_req_for_cam'
+     server_addr = 'https://'+httpsserver+'/get_req_for_cam';
      data = {'camera' : camera_addr, 'wsserver':wsserver};//servers address
      $.ajax({
         type: "POST",

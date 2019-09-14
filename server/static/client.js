@@ -259,7 +259,8 @@ connectToOtherUsernameBtn.addEventListener("click", function () {
 //when somebody sends us an offer we always set that offer given to us as our remote description
 function handleOffer(data) {
    connectedUser = data.sdp.name;
-   addConnection(connectedUser)
+   camera_addr = data.sdp.ip;
+   addConnection(connectedUser, camera_addr)
    console.log("RTCPeerConnection object was created");
    console.log(connections[connectedUser]);
    console.log("this is the offer: ",data.sdp);
@@ -345,10 +346,10 @@ if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
 
 //on connection added
 var cameraCounter = 0;
-function addConnection(name){
+function addConnection(name, ip){
   //create our element
   videoElement = document.createElement("video");
-  var vidName = "video_"+name;
+  var vidName = ip;
   videoElement.setAttribute("id", vidName);
   videoElement.setAttribute("controls", true);
   videoElement.setAttribute("autoplay", true);
@@ -357,7 +358,11 @@ function addConnection(name){
   var video_div = $("<div class='vid'>");
   var video_title_div = $("<div>");
 
+  var delete_video_but = $('<button type="button" class="btn btn-danger delete_vid" aria-label="Close" style="float:right" value="'+ip+'"><span aria-hidden="true">×</span></button>');
   video_title_div.text(vidName);
+  video_title_div.append(delete_video_but);
+  video_title_div.css("overflow", 'auto');
+  video_title_div.css("font-size", "x-large");
   video_div.append(videoElement);
   video_div.append(video_title_div);
   col.append(video_div);
