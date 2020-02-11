@@ -33,10 +33,11 @@ class Monitor:
         self.timeToRecord = timeToRecord#Amount of time to record in seconds
         self.ipAddr = ipAddr
         self.port = port
-        self.cap = cv2.VideoCapture('udpsrc auto-multicast=true port='+str(self.port)+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
+        self.cap = cv2.VideoCapture('udpsrc auto-multicast=true port='+self.port+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
         self.setKeyFrame = 60
         self.bitrate = str(bitrate)
         self.directory = directory
+        self.frames = []
         Gst.init(None)
         if not os.path.exists(directory):#check for directory
             os.makedirs(directory)
@@ -50,15 +51,14 @@ class Monitor:
     def stop(self):
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
-        self.pipeline.set_state(Gst.State.NULL)
         self.pipeline.send_event(Gst.Event.new_eos())
-
+        self.pipeline.set_state(Gst.State.NULL)
     def run(self):
         while(True):
         #capture frames and apply some blurs to later check absolute value
             ret, frame = self.cap.read()
-            frame = imutils.resize(frame, width=300)#calculate on a small frame
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            frame_rsz = imutils.resize(frame, width=300)#calculate on a small frame
+            gray = cv2.cvtColor(frame_rsz, cv2.COLOR_BGR2GRAY)
             gray = cv2.GaussianBlur(gray, (21, 21), 0)
             #if this is the begining of a stream set the keyframe to the first frame
             if self.keyFrame is None:
@@ -66,24 +66,33 @@ class Monitor:
             # compute the absolute difference between the current frame and
             frameDelta = cv2.absdiff(self.keyFrame, gray)
             self.slidingWindow.append(np.average(frameDelta))
+            if self.startRecord == True:
+                self.frames.append(frame)#append frames
             if np.average(self.slidingWindow)/255 > self.thresh:
                 print("past threshold")
                 if self.startRecord == True:#if we are already recording dont start again
                     print('Started Recording')
                     timeStr = str(time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime()))
-                    self.pipeline = Gst.parse_launch('udpsrc auto-multicast=true port='+str(int(self.port)+2)+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! x264enc bitrate='+self.bitrate+' ! matroskamux ! filesink async=0 location='+self.directory+'/'+timeStr+'.mkv')
-                    self.play()
+                    self.frames.append(frame)#append frames
                     self.t_end = time.time() + self.timeToRecord
                     self.startRecord = False
             else:
                 if self.startRecord == False:#checks if we are recording
                     if time.time() >= self.t_end:
                         print('Stopped Recording')
-                        self.stop()
+                        pathOut = self.directory+'/'+timeStr+'.mkv'
+                        fps = 30
+                        size = np.shape(frame)[:2]
+                        out = cv2.VideoWriter(pathOut,cv2.VideoWriter_fourcc(*'H264'), fps, (size[1], size[0]))
+                        for i in range(len(self.frames)):
+                            # writing to a image array
+                            out.write(self.frames[i])
+                        out.release()
+                        self.frames = []
                         #self.cap.release()
                         #self.cap = cv2.VideoCapture('udpsrc port='+self.port+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
                         #self.pipeline.release()
-                        del self.pipeline
+                        #del self.pipeline
                         self.startRecord = True#sets flag to start recording again
             if self.count == self.setKeyFrame:
                 #reset keyframe after x frames

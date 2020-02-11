@@ -134,6 +134,7 @@ def get_req_for_cam():
 
 def motion_detection(cam, directory):
     print("in motion detection")
+    print(cam.motion_port)
     cameraMonitor = rom.Monitor(ipAddr=cam.address, port=cam.motion_port,directory=directory+cam.address, threshold=0.015, timeToRecord=30, bitrate=2048)
     cameraMonitor.run()
 
