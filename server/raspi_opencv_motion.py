@@ -33,7 +33,7 @@ class Monitor:
         self.timeToRecord = timeToRecord#Amount of time to record in seconds
         self.ipAddr = ipAddr
         self.port = port
-        self.cap = cv2.VideoCapture('udpsrc auto-multicast=true port='+str(int(self.port)+1)+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
+        self.cap = cv2.VideoCapture('udpsrc auto-multicast=true port='+str(self.port)+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
         self.setKeyFrame = 60
         self.bitrate = str(bitrate)
         self.directory = directory

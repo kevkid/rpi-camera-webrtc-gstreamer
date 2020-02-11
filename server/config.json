@@ -1,1 +1,1 @@
-{"httpsserver": "127.0.0.1:5000", "wsserver": "wss://127.0.0.1:8765", "certpath": "/opt/cert/", "cameras": ["127.0.0.1:7001"], "video_save_dir":"cameras/"}
+{"httpsserver": "127.0.0.1:5000", "wsserver": "wss://127.0.0.1:8765", "certpath": "/opt/cert/", "cameras": ["127.0.0.1:7001", "127.0.0.1:7011", "192.168.x.x:7021"], "video_save_dir":"cameras/"}

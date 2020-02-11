@@ -120,6 +120,7 @@ class WebRTCClient:
         h264parse ! queue ! rtph264pay config-interval=-1 !
         queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! sendrecv.'''
         PIPELINE_DESC = PIPELINE_DESC.format(self.port)
+        print(self.port)
         self.pipe = Gst.parse_launch(PIPELINE_DESC)
         self.webrtc = self.pipe.get_by_name('sendrecv')
         self.webrtc.connect('on-negotiation-needed', self.on_negotiation_needed)

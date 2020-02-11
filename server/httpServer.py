@@ -18,6 +18,26 @@ app = Flask(__name__)
 global config
 global pipelines
 config_loc = 'config.json'
+
+#camera class
+class camera:
+    def __init__(self, address_port):
+        ap = address_port.split(':')
+        self.address = ap[0]#ip address of cam
+        self.port = ap[1]#port camera is transmitting udp stream
+        self.motion_port = str(int(ap[1])+1)
+        self.client_port = str(int(ap[1])+2)
+        self.motionSplit = '''udpsrc port={} ! tee name=t t. ! queue ! udpsink port={} name=motion_port t.
+                            ! queue ! udpsink port={} name=client_port'''.format(self.port, self.motion_port, self.client_port)
+        self.pipelines = {}
+        self.clientSplit = '''udpsrc port={} ! tee name=t'''.format(self.client_port)
+        self.clients = []#dunamically add clients (browser ids)
+    def gen_clientSplit(self):
+        tmp = self.clientSplit
+        for client in self.clients:
+            tmp += ' t. ! queue ! udpsink port={}'.format(client)
+        return tmp
+
 # for CORS
 @app.after_request
 def after_request(response):
@@ -63,43 +83,29 @@ def run_signaling_server():
     print('running signaling server!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     os.system('python3 signaling_server.py --addr '+wss_addr[0]+' --port '+wss_addr[1]+' --cert-path /opt/cert/')
     #exec(open("./signaling_server.py").read())
-
 def launch_cameras(browser_id = ""):
     assert (os.path.exists(config_loc)),"Config does not exist, make sure it does!"
     config = open_config(config_loc)
-    cameras = config['cameras']
     wsserver = config['wsserver']
-    #time.sleep(5)
-    for i in cameras:#n cameras
-        camera = i.split(':')
-        #have to add mechanism to append the updsinks
-        try:
-            pipelines[i]['clientSplitPipe'].set_state(Gst.State.NULL)
-        except:
-            print('no pipe')
-            pipelines[i]['clientSplit'] = '''udpsrc port={} ! tee name=t'''.format(int(camera[1])+2)
-        pipelines[i]['clientSplit'] += ' t. ! queue ! udpsink port={}'.format(browser_id)
-        print('in launch cameras')
-        print(pipelines[i]['clientSplit'])
-        pipe = Gst.parse_launch(pipelines[i]['clientSplit'])
-        pipelines[i]['clientSplitPipe'] = pipe
+    for i, cam in enumerate(cameras):#n cameras, using an index so we can adjust the ports for each browser
+        cam.clients.append(str(int(browser_id)+i))
+        print(cam.clients)
+        pipe = Gst.parse_launch(cam.gen_clientSplit())#must check for duplicate browserids
+        cam.pipelines['clientSplitPipe'] = pipe
         pipe.set_state(Gst.State.PLAYING)
-        print('client split')
-        print(pipelines[i]['clientSplit'])
-        print(camera)
-        p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], str(browser_id), browser_id))
+        print(cam.address)
+        print('browserport: {} for camera: {}'.format(cam.clients[-1], cam.address))
+        print(cam.gen_clientSplit())
+        p = multiprocessing.Process(target=run_client_local, args=(wsserver, cam.address, str(int(browser_id)+i), browser_id))
         p.start()
-        #time.sleep(3)
+        time.sleep(3)
 
 def run_client_local(server, ip, port, browser_id):#usually the camera server
     Gst.init(None)
     if not check_plugins():
         sys.exit(1)
-    our_id = random.randrange(10, 10000)
-    print("OUR ID: {}!!!!!!!!!!!!!!!!!!!!!!".format(our_id))
+    our_id = random.randrange(3000, 9000)
     peerid = browser_id
-    print(server)
-    print(peerid)
     c = WebRTCClient(our_id, peerid, server, ip, port)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -123,13 +129,12 @@ def get_req_for_cam():
         time.sleep(1)
         resp = jsonify(success=True, wasCameraAdded=1)#camera was added
         return resp
-        #return redirect(url_for('index'), code=302)
     resp = jsonify(success=False, wasCameraAdded=0, reason="Camera was not added, because already in database")#camera was added
     return resp
 
-def motion_detection(ip_port, directory):
+def motion_detection(cam, directory):
     print("in motion detection")
-    cameraMonitor = rom.Monitor(ipAddr=ip_port[0], port=ip_port[1],directory=directory, threshold=0.015, timeToRecord=30, bitrate=2048)
+    cameraMonitor = rom.Monitor(ipAddr=cam.address, port=cam.motion_port,directory=directory+cam.address, threshold=0.015, timeToRecord=30, bitrate=2048)
     cameraMonitor.run()
 
 import json
@@ -148,9 +153,8 @@ def recieveCamInfo(cameras):
     global pipelines
     pipelines = {}
     for cam in cameras:
-        cam_port = int(cam.split(':')[1])
-        pipelines[cam] = {'motionSplit': '''udpsrc port={} ! tee name=t t. ! queue ! udpsink port={} t. ! queue ! udpsink port={}'''.format(cam_port, cam_port+1, cam_port+2)}
-        pipe = Gst.parse_launch(pipelines[cam]['motionSplit'])
+        pipe = Gst.parse_launch(cam.motionSplit)
+        cam.pipelines['motionSplit'] = pipe#put actual pipe into cam class
         pipe.set_state(Gst.State.PLAYING)
 if __name__ == '__main__':
     global config
@@ -160,18 +164,20 @@ if __name__ == '__main__':
     httpsserver = config['httpsserver']
     wsserver = config['wsserver']
     certpath = config['certpath']
-    cameras = config['cameras']
-    recieveCamInfo(cameras)
+    cameras = []#list of cameras
+    for cam in config['cameras']:
+        cameras.append(camera(cam))
+    recieveCamInfo(cameras)#starts 2 pipelines, one to save, one to forward to clients.
     video_save_dir = config['video_save_dir']
     #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
     p.start()
     print('server pid: {}'.format(p.pid))
-    for i in cameras:#2 cameras
-        camera = i.split(':')
-        print(camera)
-        #c = multiprocessing.Process(target=motion_detection, args=(camera,video_save_dir+camera[0],))
-        #c.start()
+    for cam in cameras:
+        print(cam.address)
+        print(cam.port)
+        c = multiprocessing.Process(target=motion_detection, args=(cam,video_save_dir))
+        c.start()
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")
     #context = ('/opt/cert/nginx-selfsigned.crt', '/opt/cert/nginx-selfsigned.key')#certificate and key files

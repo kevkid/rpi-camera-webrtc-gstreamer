@@ -17,7 +17,9 @@ var connections = {}
 var configuration;
 var name
 function getOurId() {
-    return Math.floor(Math.random() * (9000 - 10) + 10).toString();
+    min = 3000
+    max = 9000
+    return Math.floor(min + Math.random() * (max - min)).toString();
 }
 
 //on page load
