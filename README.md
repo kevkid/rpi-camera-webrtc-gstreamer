@@ -29,7 +29,7 @@ LIBSRTP_VERSION="2.2.0" # libsrtp (v>=2.2.0) required for srtp plugin
 WEBRTCAUDIO_VERSION="0.3.1" # webrtc-audio-processing required for webrtcdsp
 USRSCTP_VERSION="0.9.3.0" # usrsctp required for webrtc data channels (sctp)
 
-# libnice 
+# libnice
 PACKAGE=libnice
 wget https://nice.freedesktop.org/releases/$PACKAGE-$LIBNICE_VERSION.tar.gz
 tar xvf $PACKAGE-$LIBNICE_VERSION.tar.gz
@@ -112,11 +112,11 @@ Here is how to generate the certs https://www.digitalocean.com/community/tutoria
 
 #This works for server
 ```sh
-gst-launch-1.0 -v videotestsrc ! x264enc speed-preset=ultrafast ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink port=7001
+gst-launch-1.0 -v videotestsrc ! x264enc key-int-max=1 speed-preset=ultrafast ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink port=7001
 ```
 #### If you want to get it to work on multiple clients you would want to use tee:
 ```sh
-gst-launch-1.0 -v videotestsrc is-live=1 pattern=ball flip=true ! x264enc speed-preset=ultrafast tune=zerolatency ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! tee name=t t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000
+gst-launch-1.0 -v videotestsrc is-live=1 pattern=ball flip=true ! x264enc speed-preset=ultrafast tune=zerolatency key-int-max=1 ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay ! tee name=t t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000 t. ! queue ! udpsink auto-multicast=true port=7000
 ```
 The previous code gives us 5 different udp streams
 
@@ -130,7 +130,7 @@ gst-launch-1.0 udpsrc port=7001 caps = "application/x-rtp, media=(string)video, 
 ```sh
 PIPELINE_DESC = '''
 	webrtcbin name=sendrecv bundle-policy=max-bundle
-        udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay ! 
+        udpsrc port=7001 caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtph264depay !
         h264parse ! rtph264pay config-interval=-1 !
         queue ! application/x-rtp,media=video,encoding-name=H264,payload=96 ! rtpjitterbuffer ! sendrecv.'''
 
@@ -138,7 +138,7 @@ PIPELINE_DESC = '''
 ### If you want to use the camera, run this on the camera setting your host to the correct ip address of the server consuming the stream
 
 ```
-gst-launch-1.0 -v rpicamsrc bitrate=1000000 ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink host=192.168.XXX.XXX port=7001
+gst-launch-1.0 -v rpicamsrc bitrate=1000000 keyframe-interval=1 ! "video/x-h264,profile=constrained-baseline,width=1280,height=720,stream-format=byte-stream,level=(string)3.1" ! rtph264pay config-interval=1 ! udpsink host=192.168.XXX.XXX port=7001
 ```
 # Credit:
 https://github.com/centricular/gstwebrtc-demos

@@ -7,8 +7,16 @@ import time
 import raspi_opencv_motion as rom
 sys.path.append('../cameras/')
 from webrtc_sendrecv import *
+#gstreamer stuff
+import gi
+import sys
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst, GObject
+Gst.init(sys.argv)
+#gstreamer stuff
 app = Flask(__name__)
 global config
+global pipelines
 config_loc = 'config.json'
 # for CORS
 @app.after_request
@@ -23,6 +31,7 @@ def index():
     return render_template('index.html', httpsserver=httpsserver, wsserver=wsserver)
 
 #This gives the server the browsers peer_id so we can properly launch webrtcbin
+#this is sent as soon as js is loaded on webpage
 @app.route('/get_browser_id', methods=['POST'])
 def get_browser_id():
     b_id = request.json['browser_id']
@@ -60,11 +69,25 @@ def launch_cameras(browser_id = ""):
     config = open_config(config_loc)
     cameras = config['cameras']
     wsserver = config['wsserver']
-    time.sleep(1)
+    #time.sleep(5)
     for i in cameras:#n cameras
         camera = i.split(':')
+        #have to add mechanism to append the updsinks
+        try:
+            pipelines[i]['clientSplitPipe'].set_state(Gst.State.NULL)
+        except:
+            print('no pipe')
+            pipelines[i]['clientSplit'] = '''udpsrc port={} ! tee name=t'''.format(int(camera[1])+2)
+        pipelines[i]['clientSplit'] += ' t. ! queue ! udpsink port={}'.format(browser_id)
+        print('in launch cameras')
+        print(pipelines[i]['clientSplit'])
+        pipe = Gst.parse_launch(pipelines[i]['clientSplit'])
+        pipelines[i]['clientSplitPipe'] = pipe
+        pipe.set_state(Gst.State.PLAYING)
+        print('client split')
+        print(pipelines[i]['clientSplit'])
         print(camera)
-        p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], camera[1], browser_id))
+        p = multiprocessing.Process(target=run_client_local, args=(wsserver, camera[0], str(browser_id), browser_id))
         p.start()
         #time.sleep(3)
 
@@ -82,8 +105,8 @@ def run_client_local(server, ip, port, browser_id):#usually the camera server
     asyncio.set_event_loop(loop)
     asyncio.get_event_loop().run_until_complete(c.connect())
     res = asyncio.get_event_loop().run_until_complete(c.loop())
-    sys.exit(res)
-    return 0
+    #sys.exit(res)
+    #return 0
 
 @app.route('/get_req_for_cam', methods=['GET','POST'])
 def get_req_for_cam():
@@ -119,7 +142,16 @@ def save_config(location):
     with open(location, 'w') as outfile:
         json.dump(config, outfile)
         print("saved config")
-
+#pipe should be camera  -> udpsink to clientSplit
+#                       ->udp to motion/save
+def recieveCamInfo(cameras):
+    global pipelines
+    pipelines = {}
+    for cam in cameras:
+        cam_port = int(cam.split(':')[1])
+        pipelines[cam] = {'motionSplit': '''udpsrc port={} ! tee name=t t. ! queue ! udpsink port={} t. ! queue ! udpsink port={}'''.format(cam_port, cam_port+1, cam_port+2)}
+        pipe = Gst.parse_launch(pipelines[cam]['motionSplit'])
+        pipe.set_state(Gst.State.PLAYING)
 if __name__ == '__main__':
     global config
     config = open_config('config.json')
@@ -129,6 +161,7 @@ if __name__ == '__main__':
     wsserver = config['wsserver']
     certpath = config['certpath']
     cameras = config['cameras']
+    recieveCamInfo(cameras)
     video_save_dir = config['video_save_dir']
     #start signaling server
     p = multiprocessing.Process(target=run_signaling_server)#, args=("run_signaling_server", ))
@@ -137,8 +170,8 @@ if __name__ == '__main__':
     for i in cameras:#2 cameras
         camera = i.split(':')
         print(camera)
-        c = multiprocessing.Process(target=motion_detection, args=(camera,video_save_dir+camera[0],))
-        c.start()
+        #c = multiprocessing.Process(target=motion_detection, args=(camera,video_save_dir+camera[0],))
+        #c.start()
     context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
     context.load_cert_chain("/opt/cert/nginx-selfsigned.crt", "/opt/cert/nginx-selfsigned.key")
     #context = ('/opt/cert/nginx-selfsigned.crt', '/opt/cert/nginx-selfsigned.key')#certificate and key files
