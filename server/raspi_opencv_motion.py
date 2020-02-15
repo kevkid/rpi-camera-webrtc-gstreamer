@@ -27,7 +27,8 @@ class Monitor:
         self.keyFrame = None
         self.count = 0
         self.slidingWindow = []
-        self.startRecord = True
+        self.startRecord = False
+        self.t_start = None
         self.t_end = None
         self.thresh = threshold
         self.timeToRecord = timeToRecord#Amount of time to record in seconds
@@ -66,34 +67,31 @@ class Monitor:
             # compute the absolute difference between the current frame and
             frameDelta = cv2.absdiff(self.keyFrame, gray)
             self.slidingWindow.append(np.average(frameDelta))
+
+            if np.average(self.slidingWindow)/255 > self.thresh:#detect movement
+                self.startRecord = True
+                print('Started Recording')
+                self.t_start = time.time()#update everytime there is motion
+                timeStr = str(time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime()))
+
             if self.startRecord == True:
                 self.frames.append(frame)#append frames
-            if np.average(self.slidingWindow)/255 > self.thresh:
-                print("past threshold")
-                if self.startRecord == True:#if we are already recording dont start again
-                    print('Started Recording')
-                    timeStr = str(time.strftime("%Y-%m-%d_%H-%M-%S", time.gmtime()))
-                    self.frames.append(frame)#append frames
-                    self.t_end = time.time() + self.timeToRecord
-                    self.startRecord = False
-            else:
-                if self.startRecord == False:#checks if we are recording
-                    if time.time() >= self.t_end:
-                        print('Stopped Recording')
-                        pathOut = self.directory+'/'+timeStr+'.mkv'
-                        fps = 30
-                        size = np.shape(frame)[:2]
-                        out = cv2.VideoWriter(pathOut,cv2.VideoWriter_fourcc(*'H264'), fps, (size[1], size[0]))
-                        for i in range(len(self.frames)):
-                            # writing to a image array
-                            out.write(self.frames[i])
-                        out.release()
-                        self.frames = []
-                        #self.cap.release()
-                        #self.cap = cv2.VideoCapture('udpsrc port='+self.port+' caps = "application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264, payload=(int)96" ! rtpjitterbuffer ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink sync=false', cv2.CAP_GSTREAMER)
-                        #self.pipeline.release()
-                        #del self.pipeline
-                        self.startRecord = True#sets flag to start recording again
+            if self.t_start and self.timeToRecord <= int((time.time()-self.t_start) % 60):#curr time - time started is larger than allotted time, if yes stop recording
+                self.startRecord = False#stops recording
+                print('Stopped Recording')
+                pathOut = self.directory+'/'+timeStr+'.mkv'
+                fps = 30
+                size = np.shape(frame)[:2]
+                out = cv2.VideoWriter(pathOut,cv2.VideoWriter_fourcc(*'H264'), fps, (size[1], size[0]))
+                print('Saving to disk')
+                for frame in self.frames:
+                    # writing to a image array
+                    out.write(frame)
+                out.release()
+                print('Finished Saving')
+                self.frames = []
+                self.t_start = None
+
             if self.count == self.setKeyFrame:
                 #reset keyframe after x frames
                 self.keyFrame = gray
